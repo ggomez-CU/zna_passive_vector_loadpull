@@ -1,6 +1,0 @@
-Error term type = N_PORT_EXTENDED_12TERM_EM
-Cal type        = 2-Port SOLT
-Cal date        = 7/17/2025 1:21:11 PM
-Comment         = 
-Num Ports       = 2
-Phys ports      = 1 2 

@@ -1,6 +1,0 @@
-Error term type = SIXTEEN_TERM_EM
-Cal type        = 2-Port LRRM
-Cal date        = 6/27/2025 4:51:56 PM
-Comment         = 
-Num Ports       = 2
-Phys ports      = 1 2 

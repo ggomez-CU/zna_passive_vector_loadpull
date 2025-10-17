@@ -1,0 +1,20 @@
+[bench]
+name = "bench_dual_channel"
+
+[visa]
+BiasCtrl = "192.168.0.40:5025"
+VNA = "192.168.0.20:5025"
+DMM1 = ""
+DMM2 = ""
+TUNER = {driver="FocusTuner",
+        resource="TCPIP0::10.0.0.1::23::SOCKET",
+        read_term="CCMT->", write_term="\\r\\n", timeout_ms=2000}
+PM = ""
+
+[timeouts]
+query_s = 3.0
+settle_s = 0.2
+
+[bias_ctrl]
+mode = "dual_channel"
+channels = { drain = "OUT1", gate = "OUT2", body = "OUT3" }

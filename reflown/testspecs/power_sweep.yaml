@@ -1,0 +1,38 @@
+name: pna_fp_grid
+requires: [PNA]
+
+parameters: { f_start_ghz: {default: 8}, f_stop_ghz: {default: 12}, f_step_ghz: {default: 1},
+             p_start_dbm: {default: -20}, p_stop_dbm: {default: 0}, p_step_db: {default: 5}, 
+               channel:    {default: 1}, input_port: {default: 3}, output_port: {default: 4} }
+
+plot:
+  type: grid
+  rows: 2
+  cols: 2
+  panels:
+    - {title: "|S11| vs f", x: "freq", y: "sparams.S11_mag"}
+    - {title: "|S21| vs f", x: "freq", y: "sparams.S21_mag"}
+    - {title: "|S12| vs f", x: "freq", y: "sparams.S12_mag"}
+    - {title: "|S22| vs f", x: "freq", y: "sparams.S22_mag"}
+
+steps:
+  - call: {inst: ZVA, method: init_vector_receiver, args: ["${channel}", "${input_port}", "${output_port}"]}
+  - sweep:
+      var: freq
+      from: "${f_start_ghz}"
+      to:   "${f_stop_ghz}"
+      step: "${f_step_ghz}"
+      do:
+        - call: {inst: PNA, method: set_freq, args: ["${freq}"]}
+        - sweep:
+            var: pow
+            from: "${p_start_dbm}"
+            to:   "${p_stop_dbm}"
+            step: "${p_step_db}"
+            do:
+              - call: {inst: PNA, method: set_power, args: ["${pow}"]}
+              - measure: {inst: PNA, method: capture_point, save_as: "sparams"}
+        - plot_reset: {suffix: "plot_${freq}GHz"}
+
+fail_policy: continue
+interrupt_policy: pause

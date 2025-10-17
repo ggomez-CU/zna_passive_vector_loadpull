@@ -1,0 +1,6 @@
+name: dmm_example
+requires: [DMM]
+
+steps:
+  - call: {inst: DMM, method: configure_voltage_dc}
+  - measure: {inst: DMM, method: measure_voltage, save_as: vdc}

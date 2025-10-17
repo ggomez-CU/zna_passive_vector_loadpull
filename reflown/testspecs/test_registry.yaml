@@ -1,0 +1,10 @@
+name: test_registry
+requires: [TUNER, VNA, PM, BiasCtrl, DMM1]
+steps:
+  - measure: {inst: TUNER, method: idn, save_as: tuner_config}
+  - measure: {inst: VNA, method: idn, save_as: VNA_idn}
+  - measure: {inst: PM, method: idn, save_as: PM_idn}
+  - measure: {inst: DMM1, method: idn, save_as: DMM1_idn}
+  - measure: {inst: DMM2, method: idn, save_as: DMM2_idn}
+  - measure: {inst: BiasCtrl, method: idn, save_as: BiasCtrl_idn}
+

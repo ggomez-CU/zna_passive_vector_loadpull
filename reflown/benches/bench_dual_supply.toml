@@ -1,0 +1,23 @@
+[bench]
+name = "bench_dual_supply"
+
+[visa]
+BiasCtrl = "192.168.0.40:5025"
+AuxSupply = "TCPIP0::10.0.0.5::INSTR"
+Extra1 = "GPIB0::5::INSTR"
+VNA = "192.168.0.20:5025"
+DMM1 = ""
+DMM2 = ""
+TUNER = {driver="FocusTuner",
+        resource="TCPIP0::10.0.0.1::23::SOCKET",
+        read_term="CCMT->", write_term="\\r\\n", timeout_ms=2000}
+PM = ""
+
+[timeouts]
+query_s = 3.0
+settle_s = 0.2
+
+[bias_ctrl]
+mode = "dual_supply"
+secondary = "AuxSupply"
+extra_supplies = ["Extra1"]
