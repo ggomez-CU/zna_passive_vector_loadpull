@@ -37,8 +37,7 @@ class Keysight34400(Instrument):
 
     def measure_voltage(self) -> Dict[str, Any]:
         """Trigger and read a DC voltage measurement."""
-        val = float(self.scpi.query("READ?"))
-        return {"Vdc": val}
+        return float(self.scpi.query("READ?"))
 
     def measure_resistance(self, four_wire: bool = False) -> Dict[str, Any]:
         """Trigger and read a resistance measurement."""

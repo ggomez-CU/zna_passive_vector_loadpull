@@ -1,0 +1,22 @@
+name: test_VNA
+requires: [VNA]
+
+plot:
+  type: grid
+  rows: 2
+  cols: 2
+  panels:
+    - {title: "a1", x: "wave_data.a1.real", y: "wave_data.a1.imag"}
+    - {title: "b1", x: "wave_data.b1.real", y: "wave_data.b1.imag"}
+    - {title: "a2", x: "wave_data.a2.real", y: "wave_data.a2.imag"}
+    - {title: "b2", x: "wave_data.b2.real", y: "wave_data.b2.imag"}
+
+steps:
+  - call: {inst: VNA, method: preset}
+  - call: {inst: VNA, method: init_vector_receiver}
+  - measure: {inst: VNA, method: capture_point, save_as: wave_data} 
+  - measure: {inst: VNA, method: capture_point, save_as: wave_data} 
+  - measure: {inst: VNA, method: capture_point, save_as: wave_data} 
+  - measure: {inst: VNA, method: capture_point, save_as: wave_data} 
+  - measure: {inst: VNA, method: capture_point, save_as: wave_data} 
+

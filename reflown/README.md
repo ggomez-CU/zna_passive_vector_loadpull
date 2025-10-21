@@ -5,6 +5,8 @@
 
 
 ```bash
+Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force
+.\.venv\Scripts\Activate.ps1
 pip install -e .
 loadpull list-tests
 loadpull run testspecs/power_sweep.yaml --bench benches/bench_default.toml --out runs/$(date +%F_%H%M)

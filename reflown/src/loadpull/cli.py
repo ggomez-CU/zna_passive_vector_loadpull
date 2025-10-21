@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 from typing import Optional
+import time
 
 import typer
 from rich import print
@@ -40,28 +41,51 @@ def list_instruments() -> None:
 def run(
     testspec: str = typer.Argument(..., help="YAML testspec path"),
     bench: str = typer.Option("benches/bench_default.toml", help="Bench TOML"),
-    out: str = typer.Option("runs/out", help="Output directory"),
 ) -> None:
+    ts =  time.strftime("%Y-%m-%d_%H%M")
     bench_cfg = BenchConfig.from_toml(bench)
+    # Load the testspec first so we can validate required instruments.
+    sequence = Sequence.load(testspec)
+    out = f"runs/{sequence.name}/{ts}"
     out_dir = Path(out)
     session = Session(bench_cfg, out_dir)
 
     instruments = {}
-    for name, cls in INSTRUMENTS.items():
-        scpi = session.new_scpi(name)
-        inst = cls(scpi)
+    # Iterate instruments defined in the bench TOML instead of the full registry
+    for name, resource in session.bench.instruments.items():
+        cls = INSTRUMENTS.get(name)
+        if cls is None:
+            print(f"[yellow]Skipping unknown instrument '{name}' (not in registry)")
+            continue
+        if isinstance(resource, dict):
+            # Non-SCPI style instrument configured via inline table
+            # Ignore optional 'driver' key if present
+            kwargs = {k: v for k, v in resource.items() if k != "driver"}
+            inst = cls(**kwargs)
+        else:
+            scpi = session.new_scpi(name)
+            inst = cls(scpi)
         config = session.instrument_config(name)
         if config and hasattr(inst, "apply_bench_config"):
             inst.apply_bench_config(config, session)
         instruments[name] = inst
 
-    sequence = Sequence.load(testspec)
-    writer = session.writer
+    # Validate required instruments from the testspec are present in the bench
+    required = set(sequence.spec.get("requires", []))
+    missing = sorted(r for r in required if r not in instruments)
+    if missing:
+        print(f"[red]Bench missing required instruments: {', '.join(missing)}")
+        raise typer.Exit(1)
+    # Set up dual writers: log (all steps) and results (explicit updates, drives plotting)
+    from .core.results import DualWriter, JsonlWriter as _JsonlWriter
     plot_cfg: Optional[dict[str, object]] = sequence.spec.get("plot")
+    log_writer = _JsonlWriter(out_dir / "log.jsonl")
     if plot_cfg:
         from .core.plotting import LivePlotWriter
-
-        writer = LivePlotWriter(out_dir / "results.jsonl", plot_cfg)
+        results_writer = LivePlotWriter(out_dir / "results.jsonl", plot_cfg)
+    else:
+        results_writer = _JsonlWriter(out_dir / "results.jsonl")
+    writer = DualWriter(log_writer=log_writer, results_writer=results_writer)
 
     ctx = Context(
         instruments=instruments,
@@ -76,10 +100,14 @@ def run(
     try:
         sequence.run(ctx)
     finally:
-        if writer is not session.writer and hasattr(writer, "close"):
+        if hasattr(writer, "close"):
             writer.close()
-        if hasattr(session.writer, "close"):
-            session.writer.close()
+        # Close the unused default session writer if it exists
+        if hasattr(session, "writer") and hasattr(session.writer, "close"):
+            try:
+                session.writer.close()
+            except Exception:
+                pass
 
     session.record_manifest(
         {

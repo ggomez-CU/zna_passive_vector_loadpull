@@ -3,13 +3,12 @@ name = "bench_validation"
 
 [visa]
 # Either a host:port string or a VISA resource. Keep it simple for now.
-VNA = "192.168.0.20:5025"
-DMM1 = ""
-DMM2 = ""
-TUNER = {driver="FocusTuner",
-        resource="TCPIP0::10.0.0.1::23::SOCKET",
-        read_term="CCMT->", write_term="\\r\\n", timeout_ms=2000}
-PM = ""
+VNA = "TCPIP0::10.0.0.10::INSTR"
+DMM1 = "GPIB1::11::INSTR"
+DMM2 = "GPIB1::13::INSTR"
+LOADTUNER = {driver="FocusTuner", resource="TCPIP0::10.0.0.1::23::SOCKET", read_term="CCMT->", write_term="\r\n", timeout_ms=2000}
+SOURCETUNER = {driver="FocusTuner", resource="TCPIP0::10.0.0.2::23::SOCKET", read_term="CCMT->", write_term="\r\n", timeout_ms=2000}
+
 
 [timeouts]
 query_s = 3.0

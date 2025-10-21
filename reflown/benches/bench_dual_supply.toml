@@ -10,7 +10,7 @@ DMM1 = ""
 DMM2 = ""
 TUNER = {driver="FocusTuner",
         resource="TCPIP0::10.0.0.1::23::SOCKET",
-        read_term="CCMT->", write_term="\\r\\n", timeout_ms=2000}
+        read_term="CCMT->", write_term="\r\n", timeout_ms=4000}
 PM = ""
 
 [timeouts]

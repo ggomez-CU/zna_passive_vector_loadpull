@@ -1,0 +1,51 @@
+name: calibrate_DMM
+requires: [DMM2]
+
+plot:
+  type: grid
+  rows: 1
+  cols: 1
+  panels:
+    - {title: "DMM2", x: "sample", y: "Vdc", refresh: False}
+
+steps:
+  - call:
+      inst: DMM2
+      method: preset
+  - call:
+      inst: DMM2
+      method: configure_voltage_dc
+
+  - calibrate:
+      name: DMM2_noise_std
+      do:
+        - sweep:
+            var: sample
+            from: 1
+            to:   30
+            step: 1
+            do:
+              - measure:
+                  inst: DMM2
+                  method: measure_voltage
+                  save_as: Vdc
+              # Update running statistics state (no [] appends)
+              - transform:
+                  method: running_std_update
+                  args:
+                    value: ${Vdc}
+                    state: ${tmp.noise_state}
+                  save_as: tmp.noise_state
+              - results_update: {}
+
+        # Finalize to std and count, save std as the calibration value
+        - transform:
+            method: running_std_finalize
+            args:
+              state: ${tmp.noise_state}
+            save_as: tmp.noise
+
+        # Emit one results point for visibility/plotting
+        - results_update: {}
+
+      save: ${tmp.noise}

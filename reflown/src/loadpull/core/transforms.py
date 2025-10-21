@@ -65,13 +65,61 @@ def default_registry() -> TransformRegistry:
 
     registry.register("output_b2probe2_coupling", output_b2probe2_coupling)
 
+    # Running standard deviation (Welford) utilities
+    def running_std_update(payload: dict, _cal: dict) -> dict:
+        """Update running mean/M2 given a new scalar value.
+
+        Expects payload like {"value": <number>, "state": {"count": n, "mean": m, "m2": M2}}
+        Returns a state dict {"count", "mean", "m2"}.
+        """
+        x_raw = payload.get("value")
+        try:
+            x = float(x_raw)
+        except (TypeError, ValueError):
+            # Return previous state unchanged if value invalid
+            return payload.get("state") or {"count": 0, "mean": 0.0, "m2": 0.0}
+
+        state = payload.get("state") or {}
+        try:
+            n = int(state.get("count", 0))
+        except Exception:
+            n = 0
+        mean = float(state.get("mean", 0.0) or 0.0)
+        m2 = float(state.get("m2", 0.0) or 0.0)
+
+        n += 1
+        delta = x - mean
+        mean += delta / n
+        delta2 = x - mean
+        m2 += delta * delta2
+        return {"count": n, "mean": mean, "m2": m2}
+
+    registry.register("running_std_update", running_std_update)
+
+    def running_std_finalize(payload: dict, _cal: dict) -> dict:
+        """Compute sample std (ddof=1) from running state.
+
+        Expects payload like {"state": {"count": n, "m2": M2}}.
+        Returns {"std": float, "count": n}.
+        """
+        state = payload.get("state") or {}
+        try:
+            n = int(state.get("count", 0))
+        except Exception:
+            n = 0
+        m2 = float(state.get("m2", 0.0) or 0.0)
+        std = float(np.sqrt(m2 / (n - 1))) if n > 1 else 0.0
+        return {"std": std, "count": n}
+
+    registry.register("running_std_finalize", running_std_finalize)
+
     return registry
 
 def _power_correction_cal(
     *,
     dut_terms: Any,
     pm_terms: Any,
-    pm_power: Any,
+    pm_power: Any, 
     pm_network: Optional[skrf.Network],
     pm_s1p_path: Optional[Path],
     wave_values: Any,

@@ -1,0 +1,22 @@
+{
+  "__history__": {
+    "bench_validation": {
+      "DMM1_noise_std": [
+        {
+          "ts": "2025-10-21T21:32:29Z",
+          "value": null
+        }
+      ]
+    }
+  },
+  "bench_validation": {
+    "DMM1_noise_std": {
+      "count": 30,
+      "std": 6.122709362181674e-05
+    },
+    "DMM2_noise_std": {
+      "count": 30,
+      "std": 1.1010047934166484e-05
+    }
+  }
+}

@@ -1,0 +1,2 @@
+[console_scripts]
+loadpull = loadpull.cli:app

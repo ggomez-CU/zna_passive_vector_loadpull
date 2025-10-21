@@ -62,29 +62,45 @@ def _run_actions(
                     _run_actions(test_name, sweep.get("do"), env, ctx)
             elif "call" in action:
                 call_spec = action["call"]
-                inst = ctx.instruments[call_spec["inst"]]
-                method = getattr(inst, call_spec["method"])
+                inst_name = call_spec["inst"]
+                method_name = call_spec["method"]
+                inst = ctx.instruments[inst_name]
+                method = getattr(inst, method_name)
                 args = [_resolve(ctx, env, arg) for arg in call_spec.get("args", [])]
                 out = method(*args)
                 save_as = call_spec.get("save_as")
                 if save_as:
                     _set_mapping_value(env, save_as, out)
+                payload = {"inst": inst_name, "method": method_name, "result": out}
+                payload.update(_flat_env(env))
                 ctx.writer.write_point(
                     test_name,
-                    f"call:{call_spec['method']}",
-                    {"result": out, **_flat_env(env)},
+                    f"call:{method_name}",
+                    payload,
                 )
             elif "measure" in action:
                 measure = action["measure"]
-                inst = ctx.instruments[measure["inst"]]
-                method = getattr(inst, measure["method"])
+                inst_name = measure["inst"]
+                method_name = measure["method"]
+                inst = ctx.instruments[inst_name]
+                method = getattr(inst, method_name)
                 args = [_resolve(ctx, env, arg) for arg in measure.get("args", [])]
                 val = method(*args)
-                save_key = measure.get("save_as", measure["method"])
+                save_key = measure.get("save_as", method_name)
                 _set_mapping_value(env, save_key, val)
-                payload = {save_key: val}
+                payload = {"inst": inst_name, "method": method_name, save_key: val}
                 payload.update(_flat_env(env))
-                ctx.writer.write_point(test_name, f"measure:{measure['method']}", payload)
+                ctx.writer.write_point(test_name, f"measure:{method_name}", payload)
+            elif "results_update" in action or "update_results" in action:
+                spec = action.get("results_update") or action.get("update_results") or {}
+                step_name = spec.get("step", "results:update") if isinstance(spec, dict) else "results:update"
+                payload = _flat_env(env)
+                if isinstance(spec, dict) and isinstance(spec.get("extra"), dict):
+                    payload = {**payload, **spec["extra"]}
+                if hasattr(ctx.writer, "write_result"):
+                    ctx.writer.write_result(test_name, step_name, payload)  # type: ignore[attr-defined]
+                else:
+                    ctx.writer.write_point(test_name, step_name, payload)
             elif "transform" in action:
                 if ctx.transform is None:
                     raise RuntimeError("Transform action requested but no transform handler configured")
@@ -100,11 +116,8 @@ def _run_actions(
                 save_as = spec.get("save_as")
                 if save_as:
                     _set_mapping_value(env, save_as, payload)
-                ctx.writer.write_point(
-                    test_name,
-                    f"transform:{method}",
-                    {**payload, **_flat_env(env)},
-                )
+                out_payload = {"method": method, **payload, **_flat_env(env)}
+                ctx.writer.write_point(test_name, f"transform:{method}", out_payload)
             elif "plot_reset" in action:
                 suffix = action["plot_reset"].get("suffix", "snap")
                 if hasattr(ctx.writer, "snapshot"):
@@ -127,7 +140,7 @@ def _run_actions(
                     ctx.writer.write_point(
                         test_name,
                         f"calibration:{name}",
-                        {"status": "reuse", "value": cached},
+                        {"method": "calibration", "status": "reuse", "value": cached},
                     )
                     continue
 
@@ -144,7 +157,7 @@ def _run_actions(
                 ctx.writer.write_point(
                     test_name,
                     f"calibration:{name}",
-                    {"status": "update", "value": value},
+                    {"method": "calibration", "status": "update", "value": value},
                 )
             else:
                 raise ValueError(f"Unknown action: {action}")

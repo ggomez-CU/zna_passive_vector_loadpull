@@ -1,0 +1,8 @@
+{
+  "schema": "1.0.0",
+  "bench": "bench_validation",
+  "ts": "2025-10-21T21:31:38Z",
+  "test": "calibrate_DMM",
+  "out": "runs\\calibrate_DMM\\2025-10-21_1531",
+  "hash": "5c44cdac10a3"
+}
