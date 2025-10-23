@@ -1,5 +1,7 @@
 name: calibrate_DMM
-requires: [DMM1]
+requires: [VNA]
+
+parameters: {SOLT_calfile: "", SOL_PMcalfile: "", setup_file: ""}
 
 plot:
   type: grid

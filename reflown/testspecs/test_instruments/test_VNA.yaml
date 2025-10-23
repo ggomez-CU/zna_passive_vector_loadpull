@@ -1,0 +1,24 @@
+name: test_VNA
+requires: [VNA]
+
+parameters: {cal_filename: {default: "20251022_vnacal4tuner_2port.cal"}, setup_filename: {default: "PassiveLoadpullCalState.zvx"}}
+
+plot:
+  type: grid
+  rows: 1
+  cols: 1
+  panels:
+    - {title: "VNA Point Capture", x: 'wave_data.x.x_data', y: ["wave_data.a1.real","wave_data.a2.real"], refresh: True}
+
+steps:
+  - call: {inst: VNA, method: clear_syserror}
+  - call: {inst: VNA, method: load_setup, args: ["${setup_filename}"]}
+  - measure: {inst: VNA, method: get_error_terms, args: ["${cal_filename}"], save_as: error_data} 
+  - results_update: {}
+  - call: {inst: VNA, method: init_vector_receiver}
+  - call: {inst: VNA, method: set_points, args: [11]}
+  - measure: {inst: VNA, method: capture_point, save_as: wave_data} 
+  - results_update: {}
+  - measure: {inst: VNA, method: capture_point, save_as: wave_data} 
+  - results_update: {}
+

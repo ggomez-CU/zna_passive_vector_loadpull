@@ -1,0 +1,20 @@
+* [x] Implement all drivers except NRX power meter
+* [ ] Write NRX power meter driver (input calibration only)
+* [x] Keep existing VNA, tuner, and bias driver structures
+* [ ] Add bench-limits YAML (power, Γ, VSWR, tuner safe region, etc.)
+* [x] Maintain current calibration YAML for VNA error terms
+* [ ] Implement VNA SOLT → probe/coax calibration routine
+* [ ] Fetch and store VNA error terms to cal YAML
+* [ ] Calibrate tuner SOLT after tuner path
+* [ ] Calibrate power using NRX at DUT input
+* [ ] Log calibration metadata (timestamp, bench limits, operator)
+* [ ] Add tuner calibration verification (compare Γ target vs. measured)
+* [ ] Support multi-dimensional sweeps (freq × power × Γ)
+* [x] Apply de-embedding using saved error terms
+* [ ] Validate zero gain (Pin vs. Pout from VNA)
+* [ ] Enforce bench limits (power, Γ, VSWR, safe tuner region)
+* [ ] Add overpower monitor (VNA now → NRX later)
+* [ ] Implement graceful shutdown (tuner reset, RF off, bias off)
+* [ ] Add VNA connection-loss handling with safe shutdown
+* [ ] Write operator README with calibration and validation guide
+* [ ] Add preflight sanity test (instrument SCPI ping, tuner Γ check, receiver linearity)

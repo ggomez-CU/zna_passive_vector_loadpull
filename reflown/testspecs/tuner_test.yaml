@@ -1,7 +1,0 @@
-name: tuner_example
-requires: [TUNER]
-steps:
-  - call: {inst: TUNER, method: preset}
-  - call: {inst: TUNER, method: load_cal_freq, args: [2.0]}   # GHz
-  - call: {inst: TUNER, method: move_axis, args: ["x", 1200]}
-  - measure: {inst: TUNER, method: pos, save_as: tuner_pos}

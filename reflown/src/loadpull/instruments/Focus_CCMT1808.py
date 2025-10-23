@@ -57,6 +57,7 @@ class FocusCCMT1808(Instrument):
             self._connected = True
         except Exception:
             # Leave partially initialized; caller can inspect/close
+            print(breakhere)
             raise
 
     # -------- low-level helpers --------

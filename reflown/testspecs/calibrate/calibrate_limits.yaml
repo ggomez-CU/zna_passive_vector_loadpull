@@ -1,0 +1,19 @@
+name: calibrate_limits
+requires: []
+
+# Stores per-bench safety/operating limits in the calibration store.
+# Reference later as: ${cal.limits}
+
+steps:
+  - calibrate:
+      name: limits
+      do: []
+      save:
+        # Example rules; adjust to your bench
+        - key: "output_power_corrected.dBm"
+          max: 32
+        - key: "drain_bias.current"
+          max: 1
+        - key: "current_bias.current"
+          max: 1
+

@@ -1,0 +1,33 @@
+name: validate_limits
+requires: [PM1]
+
+plot:
+  type: grid
+  rows: 1
+  cols: 1
+  panels:
+    - title: "Power vs Sample"
+      x: "sample"
+      y: ["p_dbm"]
+      refresh: False
+
+steps:
+  # Example: sweep a generic setpoint and read power from PM1
+  - sweep:
+      var: sample
+      from: 1
+      to:   10
+      step: 1
+      do:
+        - measure:
+            inst: PM1
+            method: read_power
+            save_as: power 
+        - results_update:
+            step: "validate:limits"
+            extra:
+              sample: ${sample}
+              p_dbm: ${power.dBm}
+            limits: ${cal.limits}
+            shutdown: true
+

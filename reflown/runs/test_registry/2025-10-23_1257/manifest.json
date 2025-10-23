@@ -1,0 +1,8 @@
+{
+  "schema": "1.0.0",
+  "bench": "bench_validation",
+  "ts": "2025-10-23T18:57:42Z",
+  "test": "test_registry",
+  "out": "runs\\test_registry\\2025-10-23_1257",
+  "hash": "ad0f9f5d50bf"
+}

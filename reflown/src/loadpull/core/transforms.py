@@ -3,6 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, Callable, Dict, Iterable, Optional
 
+import cmath
 import numpy as np
 import skrf
 
@@ -33,9 +34,10 @@ def default_registry() -> TransformRegistry:
 
     def apply_power(payload: dict, cal: dict) -> dict:
         if "power" in payload:
-            payload = dict(payload)
-            payload["power_corr"] = payload["power"] - cal.get("power_offset", 0.0)
-        return payload
+            # payload = dict(payload)
+            # payload["power_corr"] = payload["power"] - cal.get("power_offset", 0.0)
+            return {"power_corr": payload["power"] - cal.get("power_offset", 0.0)}
+        return {}
 
     registry.register("read_power", apply_power)
 
@@ -64,6 +66,15 @@ def default_registry() -> TransformRegistry:
         )
 
     registry.register("output_b2probe2_coupling", output_b2probe2_coupling)
+
+    def z2gamma(payload: dict, _cal: dict) -> dict:
+        if "real" in payload and "imag" in payload:
+            z = payload["real"] + payload["imag"]
+            modulus, phase = cmath.polar(z)
+            return {"angle_rad": phase,
+                "mag": modulus} 
+
+    registry.register("z2gamma", z2gamma)
 
     # Running standard deviation (Welford) utilities
     def running_std_update(payload: dict, _cal: dict) -> dict:

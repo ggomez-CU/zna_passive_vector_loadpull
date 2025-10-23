@@ -14,14 +14,23 @@ class RSZVA(Instrument):
     - Data fetch returns formatted data (FDATA) or s-data (SDATA) as raw strings.
     """
     channel = 1
-    input_port = 3
-    output_port = 4
+    input_port = 1
+    output_port = 2
 
     # ---- Basic setup / utility ----
-    def preset(self) -> str:
+    def preset(self):
+        try:
+            self.scpi.write("*CLS")
+        except Exception:
+            pass
         self.scpi.write("SYST:PRES")
         time.sleep(0.5)
-        return 1
+        
+    def clear_syserror(self):
+        try:
+            self.scpi.write("*CLS")
+        except Exception:
+            pass
 
     def idn(self) -> str:
         return self.scpi.query("*IDN?")
@@ -149,18 +158,35 @@ class RSZVA(Instrument):
         self.scpi.write(f"CALC{self.channel}:PAR:SDEF 'Trcb2', 'B{self.output_port}D{self.input_port}'")
 
     def get_error_terms(self, filename) -> Dict[str, Any]:
-        self.set_cal_file(cal1_filename)
-        return {'directivity_input': self.scpi.write(f"CORR:CDAT 'DIRECTIVITY', {self.input_port}"),
-        'srcmatch_input': self.scpi.write(f"CORR:CDAT 'SRCMATCH', {self.input_port}"),
-        'refltrack_input': self.scpi.write(f"CORR:CDAT 'REFLTRACK', {self.input_port}"),
-        'loadmatch_input': self.scpi.write(f"CORR:CDAT 'LOADMATCH', {self.input_port}"),
-        'transtrack_input2output': self.scpi.write(f"CORR:CDAT 'TRANSTRACK', {self.input_port}, {self.output_port}"),
-        'directivity_output': self.scpi.write(f"CORR:CDAT 'DIRECTIVITY', {self.output_port}"),
-        'srcmatch_output': self.scpi.write(f"CORR:CDAT 'SRCMATCH', {self.output_port}"),
-        'refltrack_output': self.scpi.write(f"CORR:CDAT 'REFLTRACK', {self.output_port}"),
-        'loadmatch_output': self.scpi.write(f"CORR:CDAT 'LOADMATCH', {self.output_port}"),
-        'transtrack_output2input': self.scpi.write(f"CORR:CDAT 'TRANSTRACK', {self.output_port}, {self.input_port}")}
+        self.set_cal_file(filename) 
+        return {'directivity_input': self.scpi.query(f"CORR:CDAT? 'DIRECTIVITY',{self.input_port},0"),
+        'srcmatch_input': self.scpi.query(f"CORR:CDAT? 'SRCMATCH',{self.input_port},0"),
+        'refltrack_input': self.scpi.query(f"CORR:CDAT? 'REFLTRACK',{self.input_port},0"),
+        'loadmatch_input': self.scpi.query(f"CORR:CDAT? 'LOADMATCH',{self.input_port},{self.output_port}"),
+        'transtrack_input2output': self.scpi.query(f"CORR:CDAT? 'TRANSTRACK',{self.input_port},{self.output_port}"),
+        'directivity_output': self.scpi.query(f"CORR:CDAT? 'DIRECTIVITY',{self.output_port},0"),
+        'srcmatch_output': self.scpi.query(f"CORR:CDAT? 'SRCMATCH',{self.output_port},0"),
+        'refltrack_output': self.scpi.query(f"CORR:CDAT? 'REFLTRACK',{self.output_port},0"),
+        'loadmatch_output': self.scpi.query(f"CORR:CDAT? 'LOADMATCH',{self.output_port},{self.input_port}"),
+        'transtrack_output2input': self.scpi.query(f"CORR:CDAT? 'TRANSTRACK',{self.output_port},{self.input_port}")}
 
 
-    def set_cal_file(self, cal_filename):
-        self.scpi.write(f"CAL:LOAD {cal_filename}")
+    def set_cal_file(self, cal_filename, channel=1):
+        try:
+            # Load the calibration by file path
+            self.scpi.write(f"MMEM:LOAD:CORR {channel},'{cal_filename}'")
+            return True
+        except Exception as e:
+            # Surface instrument/SCPI errors with context
+            raise RuntimeError(f"Failed to load calibration '{cal_filename}': {e}") from e
+
+    def load_setup(self, filename, channel=1):
+        try:
+            # Load the calibration by file path
+            savepath = 'C:\\Rohde&Schwarz\\Nwa\\RecallSets\\'	
+            self.scpi.write(f"MMEM:CDIR '{savepath}'")
+            self.scpi.write(f"MMEM:STOR:STAT {channel},'{filename}'")
+            return True
+        except Exception as e:
+            # Surface instrument/SCPI errors with context
+            raise RuntimeError(f"Failed to load setup '{cal_filename}': {e}") from e

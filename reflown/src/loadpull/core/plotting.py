@@ -9,6 +9,14 @@ import numpy as np
 
 
 def _get(record: Dict[str, Any], keypath: str, default: Any = None) -> Any:
+    """Resolve dotted key paths from nested dicts, with a fallback to flat dotted keys.
+
+    Supports both structures:
+      - nested: {"wave_data": {"a1": {"real": [...]}}}
+      - flattened: {"wave_data.a1.real": [...]}
+    """
+    if isinstance(record, dict) and keypath in record:
+        return record[keypath]
     cur: Any = record
     for part in keypath.split('.'):
         if not isinstance(cur, dict) or part not in cur:
@@ -23,6 +31,7 @@ class _PanelState:
     x_key: str | None
     y_keys: List[str]
     refresh: bool
+    polar: bool
     x_vals: List[float]
     y_series: List[List[float]]
     lines: List[Any]
@@ -57,6 +66,7 @@ class LivePlotWriter(JsonlWriter):
                 x_key = None
                 y_keys = [p]
                 refresh = True
+                polar = False
             else:
                 title = p.get('title', f'panel_{i}')
                 x_key = p.get('x')
@@ -68,9 +78,19 @@ class LivePlotWriter(JsonlWriter):
                 else:
                     y_keys = [str(raw_y)]
                 refresh = p.get('refresh', True)
+                polar = bool(p.get('polar', False))
+
+            # Replace axis with polar projection if requested
+            if polar:
+                try:
+                    self.fig.delaxes(ax)
+                except Exception:
+                    pass
+                ax = self.fig.add_subplot(rows, cols, i + 1, projection='polar')
+
             ax.set_title(title)
             ax.grid(True, which='both', linestyle=':')
-            self.panels.append(_PanelState(ax=ax, title=title, x_key=x_key, y_keys=y_keys, refresh=refresh, x_vals=[], y_series=[[] for _ in y_keys], lines=[]))
+            self.panels.append(_PanelState(ax=ax, title=title, x_key=x_key, y_keys=y_keys, refresh=refresh, polar=polar, x_vals=[], y_series=[[] for _ in y_keys], lines=[]))
         self._panel_count = len(self.panels)
         self._idx = 0 # fallback x when no x_key
 
@@ -83,7 +103,9 @@ class LivePlotWriter(JsonlWriter):
             if not st.y_keys:
                 continue
             # Resolve x value
+            # print(rec)
             x_val = _get(rec, st.x_key) if st.x_key else self._idx
+            # print(breakhere)
             if st.refresh:
                 # Expect sequences for refresh mode
                 try:
@@ -117,6 +139,7 @@ class LivePlotWriter(JsonlWriter):
                     st.y_series[i] = ys
             else:
                 # Append scalar point
+                # print(breakhere)
                 try:
                     x_scalar = float(x_val)
                 except (TypeError, ValueError):
@@ -125,6 +148,7 @@ class LivePlotWriter(JsonlWriter):
 
                 y_scalars: List[float] = []
                 ok = True
+                # print(breakhere)
                 for y_key in st.y_keys:
                     y_val = _get(rec, y_key)
                     try:
@@ -137,25 +161,29 @@ class LivePlotWriter(JsonlWriter):
 
                 # Ensure container size
                 if len(st.y_series) != len(st.y_keys):
-                    print("y reformat")
                     st.y_series = [[] for _ in st.y_keys]
                 for i, yv in enumerate(y_scalars):
                     st.y_series[i].append(yv)
 
             # Draw or update lines
+            # print(st.x_vals)
+            # print(ys)
             if not st.lines:
                 labels = [yk for yk in st.y_keys]
                 st.lines = []
                 for ys, label in zip(st.y_series, labels):
+                    # print(ys)
                     (line,) = st.ax.plot(st.x_vals, ys, marker='o', linewidth=1, label=label)
                     st.lines.append(line)
-                st.ax.set_xlabel(st.x_key or 'index')
-                st.ax.set_ylabel(st.title)
+                if not st.polar:
+                    st.ax.set_xlabel(st.x_key or 'index')
+                    st.ax.set_ylabel(st.title)
                 if len(st.lines) > 1:
                     st.ax.legend(loc='best', fontsize='small')
                 st.ax.relim(); st.ax.autoscale_view(tight=True)
             else:
                 for line, ys in zip(st.lines, st.y_series):
+                    # print(ys)
                     line.set_data(st.x_vals, ys)
                 st.ax.relim(); st.ax.autoscale_view(tight=True)
         self._idx += 1

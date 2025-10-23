@@ -87,6 +87,20 @@ def run(
         results_writer = _JsonlWriter(out_dir / "results.jsonl")
     writer = DualWriter(log_writer=log_writer, results_writer=results_writer)
 
+    # Resolve optional shutdown order: prefer spec override; else bench TOML [shutdown].order
+    shutdown_order: Optional[list[str]] = None
+    spec_shutdown = sequence.spec.get("shutdown_order")
+    if isinstance(spec_shutdown, list):
+        shutdown_order = [str(x) for x in spec_shutdown]
+    else:
+        # Look for [shutdown] order in bench config extras
+        extra = session.bench.extra_tables or {}
+        sd = extra.get("shutdown") if isinstance(extra.get("shutdown"), dict) else None
+        if isinstance(sd, dict):
+            order = sd.get("order")
+            if isinstance(order, list):
+                shutdown_order = [str(x) for x in order]
+
     ctx = Context(
         instruments=instruments,
         writer=writer,
@@ -95,6 +109,7 @@ def run(
         transform=transform_measurement,
         fail_policy=sequence.spec.get("fail_policy", "halt"),
         interrupt_policy=sequence.spec.get("interrupt_policy", "pause"),
+        shutdown_order=shutdown_order,
     )
 
     try:

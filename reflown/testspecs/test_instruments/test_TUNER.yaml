@@ -1,0 +1,35 @@
+name: test_TUNERS
+
+parameters: {frequency: {default: 5}}
+
+plot:
+  type: grid
+  rows: 1
+  cols: 3
+  panels:
+    - { title: "Expected", x: "gamma.angle_rad", y: "gamma.mag", polar: true, refresh: true }
+    - { title: "Load Position", y: ["loadposition.x","loadposition.y_low","loadposition.y_high"], polar: true, refresh: False }
+    - { title: "Source Position", y: ["sourceposition.x","sourceposition.y_low","sourceposition.y_high"], polar: true, refresh: False }
+
+steps:
+  - call: {inst: LOADTUNER, method: preset}
+  - call: {inst: SOURCETUNER, method: preset}
+  - call: {inst: LOADTUNER, method: load_cal_freq, args: ["${frequency}"]}
+  - call: {inst: SOURCETUNER, method: load_cal_freq, args: ["${frequency}"]}
+  - call: {inst: SOURCETUNER, method: move_axis, args: ["x", 100]}
+  - call: {inst: SOURCETUNER, method: move_axis, args: ["y_low", 100]}
+  - call: {inst: SOURCETUNER, method: move_axis, args: ["y_high", 100]}
+  - measure: {inst: SOURCETUNER, method: pos, save_as: sourceposition}
+  - results_update: {}
+  - call: {inst: LOADTUNER, method: move_axis, args: ["x", 100]}
+  - call: {inst: LOADTUNER, method: move_axis, args: ["y_low", 100]}
+  - call: {inst: LOADTUNER, method: move_axis, args: ["y_high", 100]}
+  - measure: {inst: LOADTUNER, method: pos, save_as: loadposition}
+  - results_update: {}
+  - call: {inst: LOADTUNER, method: move_impedance, args: [25, -25]}
+  - call: {inst: SOURCETUNER, method: move_impedance, args: [25, -25]}
+  - transform: {method: z2gamma, args: [{"real": 25, "imag":-25}], save_as: gamma}
+  - measure: {inst: LOADTUNER, method: pos, save_as: loadposition}
+  - measure: {inst: SOURCETUNER, method: pos, save_as: sourceposition}
+  - results_update: {}
+

@@ -1,0 +1,4 @@
+{"schema": "1.0.0", "ts": "2025-10-23T19:15:41Z", "test": "test_TUNERS", "step": "call:preset", "inst": "LOADTUNER", "method": "preset", "result": true, "frequency": 5}
+{"schema": "1.0.0", "ts": "2025-10-23T19:15:42Z", "test": "test_TUNERS", "step": "call:preset", "inst": "SOURCETUNER", "method": "preset", "result": true, "frequency": 5}
+{"schema": "1.0.0", "ts": "2025-10-23T19:15:43Z", "test": "test_TUNERS", "step": "call:load_cal_freq", "inst": "LOADTUNER", "method": "load_cal_freq", "result": true, "frequency": 5}
+{"schema": "1.0.0", "ts": "2025-10-23T19:15:43Z", "test": "test_TUNERS", "step": "call:load_cal_freq", "inst": "SOURCETUNER", "method": "load_cal_freq", "result": true, "frequency": 5}

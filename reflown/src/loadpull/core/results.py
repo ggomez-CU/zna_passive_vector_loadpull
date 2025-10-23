@@ -36,7 +36,7 @@ class JsonlWriter:
 class DualWriter:
     """Facade that splits writes between a log and a results writer.
 
-    - write_point(): logs every step to `log_writer` only
+    - write_point(): logs to `log_writer` and mirrors to `results_writer` if present
     - write_result(): writes to `results_writer` (used to drive plotting)
     - snapshot/reset/close: proxied to results_writer when available; close both
     """
@@ -44,6 +44,7 @@ class DualWriter:
     results_writer: object  # JsonlWriter or LivePlotWriter
 
     def write_point(self, test: str, step: str, data: dict) -> None:
+        # Always log
         self.log_writer.write_point(test, step, data)
 
     def write_result(self, test: str, step: str, data: dict) -> None:

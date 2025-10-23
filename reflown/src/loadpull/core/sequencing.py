@@ -20,6 +20,8 @@ class Context:
     transform: Callable[[str, dict, dict], dict] | None = None
     fail_policy: str = "halt"
     interrupt_policy: str = "pause"
+    # Optional explicit shutdown order (instrument aliases)
+    shutdown_order: List[str] | None = None
 
 class Sequence:
     def __init__(self, name: str, spec: Dict[str, Any]):
@@ -60,6 +62,7 @@ def _run_actions(
                 for i in range(n):
                     env[var] = start + i * step
                     _run_actions(test_name, sweep.get("do"), env, ctx)
+
             elif "call" in action:
                 call_spec = action["call"]
                 inst_name = call_spec["inst"]
@@ -73,11 +76,8 @@ def _run_actions(
                     _set_mapping_value(env, save_as, out)
                 payload = {"inst": inst_name, "method": method_name, "result": out}
                 payload.update(_flat_env(env))
-                ctx.writer.write_point(
-                    test_name,
-                    f"call:{method_name}",
-                    payload,
-                )
+                ctx.writer.write_point(test_name, f"call:{method_name}", payload,)
+
             elif "measure" in action:
                 measure = action["measure"]
                 inst_name = measure["inst"]
@@ -91,16 +91,28 @@ def _run_actions(
                 payload = {"inst": inst_name, "method": method_name, save_key: val}
                 payload.update(_flat_env(env))
                 ctx.writer.write_point(test_name, f"measure:{method_name}", payload)
+
             elif "results_update" in action or "update_results" in action:
                 spec = action.get("results_update") or action.get("update_results") or {}
                 step_name = spec.get("step", "results:update") if isinstance(spec, dict) else "results:update"
                 payload = _flat_env(env)
-                if isinstance(spec, dict) and isinstance(spec.get("extra"), dict):
-                    payload = {**payload, **spec["extra"]}
+                if isinstance(spec, dict) and spec.get("limits") is not None:
+                    limits_spec = _resolve(ctx, env, spec.get("limits"))
+                    violations = _evaluate_limits(payload, limits_spec)
+                    if violations:
+                        # Graceful shutdown if requested (default True)
+                        do_shutdown = bool(spec.get("shutdown", True))
+                        if do_shutdown:
+                            _safe_shutdown(ctx)
+                            raise SystemExit("Safety limits violated: " + "; ".join(violations))
+                        else:
+                            # Record violations in the payload
+                            payload = {**payload, "limit_violations": violations}
                 if hasattr(ctx.writer, "write_result"):
                     ctx.writer.write_result(test_name, step_name, payload)  # type: ignore[attr-defined]
                 else:
                     ctx.writer.write_point(test_name, step_name, payload)
+
             elif "transform" in action:
                 if ctx.transform is None:
                     raise RuntimeError("Transform action requested but no transform handler configured")
@@ -118,12 +130,14 @@ def _run_actions(
                     _set_mapping_value(env, save_as, payload)
                 out_payload = {"method": method, **payload, **_flat_env(env)}
                 ctx.writer.write_point(test_name, f"transform:{method}", out_payload)
+
             elif "plot_reset" in action:
                 suffix = action["plot_reset"].get("suffix", "snap")
                 if hasattr(ctx.writer, "snapshot"):
                     ctx.writer.snapshot(_resolve(ctx, env, suffix))
                 if hasattr(ctx.writer, "reset"):
                     ctx.writer.reset()
+                    
             elif "calibrate" in action:
                 spec = action["calibrate"]
                 name = spec["name"]
@@ -163,26 +177,20 @@ def _run_actions(
                 raise ValueError(f"Unknown action: {action}")
         except KeyboardInterrupt as exc:
             if ctx.interrupt_policy == "shutdown":
-                for inst in ctx.instruments.values():
-                    if hasattr(inst, "safe_off"):
-                        inst.safe_off()
+                _safe_shutdown(ctx)
             if ctx.interrupt_policy == "pause":
                 ans = input(
                     f"Error: {exc}\nPress Enter to continue, or type 'q' to quit: "
                 )
                 if ans.strip().lower() == "q":
-                    for inst in ctx.instruments.values():
-                        if hasattr(inst, "safe_off"):
-                            inst.safe_off()
+                    _safe_shutdown(ctx)
                     raise SystemExit("User requested shutdown.")
                 break
             if ctx.interrupt_policy == "continue":
                 continue
         except Exception:
             if ctx.fail_policy == "shutdown":
-                for inst in ctx.instruments.values():
-                    if hasattr(inst, "safe_off"):
-                        inst.safe_off()
+                _safe_shutdown(ctx)
             if ctx.fail_policy == "continue":
                 continue
             raise
@@ -255,3 +263,73 @@ def _flat_env(env: Dict[str, Any]) -> Dict[str, Any]:
                 flat[name] = v
     walk("", env)
     return flat
+
+
+def _safe_shutdown(ctx: Context) -> None:
+    """Attempt a graceful, ordered shutdown of instruments.
+
+    Respects ctx.shutdown_order if provided, then shuts down any remaining
+    instruments in arbitrary order. Ignores errors from individual devices.
+    """
+    seen: set[str] = set()
+    order = ctx.shutdown_order or []
+    # First, explicit order
+    for name in order:
+        inst = ctx.instruments.get(name)
+        if inst is None:
+            continue
+        if hasattr(inst, "safe_off"):
+            try:
+                inst.safe_off()
+            except Exception:
+                pass
+        seen.add(name)
+    # Then any remaining
+    for name, inst in ctx.instruments.items():
+        if name in seen:
+            continue
+        if hasattr(inst, "safe_off"):
+            try:
+                inst.safe_off()
+            except Exception:
+                pass
+
+
+def _evaluate_limits(flat: Dict[str, Any], limits: Any) -> List[str]:
+    """Evaluate simple min/max rules against flattened env values.
+
+    limits format:
+      - list of rules: { key: "path.to.value", min: <num>, max: <num> }
+    Returns list of violation messages.
+    """
+    violations: List[str] = []
+    if not limits:
+        return violations
+    rules = limits if isinstance(limits, list) else [limits]
+    for rule in rules:
+        if not isinstance(rule, dict):
+            continue
+        key = rule.get("key")
+        if not key:
+            continue
+        if key not in flat:
+            continue
+        try:
+            val = float(flat[key])
+        except Exception:
+            continue
+        if "min" in rule:
+            try:
+                mn = float(rule["min"])  # type: ignore[arg-type]
+                if val < mn:
+                    violations.append(f"{key}={val} < min {mn}")
+            except Exception:
+                pass
+        if "max" in rule:
+            try:
+                mx = float(rule["max"])  # type: ignore[arg-type]
+                if val > mx:
+                    violations.append(f"{key}={val} > max {mx}")
+            except Exception:
+                pass
+    return violations
