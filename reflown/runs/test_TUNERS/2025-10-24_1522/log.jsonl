@@ -1,0 +1,2 @@
+{"schema": "1.0.0", "ts": "2025-10-24T21:22:45Z", "test": "test_TUNERS", "step": "transform:load_sweep_len", "method": "load_sweep_len", "count": 9, "frequency": 5, "sweep_file": "loadsweeps/test_Tuner_sweep.csv", "sweep_info.count": 9}
+{"schema": "1.0.0", "ts": "2025-10-24T21:22:45Z", "test": "test_TUNERS", "step": "transform:load_sweep_point", "method": "load_sweep_point", "gamma_mag": 0.0, "gamma_deg": 0.0, "frequency": 5, "sweep_file": "loadsweeps/test_Tuner_sweep.csv", "sweep_info.count": 9, "idx": 0.0, "point.gamma_mag": 0.0, "point.gamma_deg": 0.0}

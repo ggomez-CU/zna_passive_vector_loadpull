@@ -15,7 +15,7 @@ class RSZVA(Instrument):
     """
     channel = 1
     input_port = 1
-    output_port = 2
+    output_port = 4
 
     # ---- Basic setup / utility ----
     def preset(self):
@@ -44,10 +44,14 @@ class RSZVA(Instrument):
         self.scpi.write(f"SENS1:FREQ:SPAN {span_hz}")
         return 1
 
-    def set_freq_fixed(self, f_hz: float) -> str:
+    def set_freq_fixed(self, f_hz: float, scale: str = "hz") -> str:
         # Fixed CW frequency: set start=stop=f
-        self.scpi.write(f"SENS1:FREQ:STAR {f_hz}")
-        self.scpi.write(f"SENS1:FREQ:STOP {f_hz}")
+        if scale.lower() == "ghz":
+            self.scpi.write(f"SENS1:FREQ:STAR {f_hz*1e9}")
+            self.scpi.write(f"SENS1:FREQ:STOP {f_hz*1e9}")
+        else:
+            self.scpi.write(f"SENS1:FREQ:STAR {f_hz}")
+            self.scpi.write(f"SENS1:FREQ:STOP {f_hz}")
         return 1
 
     def set_points(self, n: int) -> str:
@@ -59,9 +63,9 @@ class RSZVA(Instrument):
         return 1
 
     # ---- Sweep control ----
-    def sweep_single(self) -> str:
+    def sweep_single(self, channel=1) -> str:
         self.set_continuous(on=False)
-        self.scpi.write("INIT1:IMM; *WAI")
+        self.scpi.write(f"INIT{channel}:IMM; *WAI")
         return 1
 
     def set_continuous(self, on: bool) -> str:
@@ -76,8 +80,13 @@ class RSZVA(Instrument):
         self.scpi.write("CALC1:PAR:SEL 'Trc1'")
         return 1
 
-    def select_trace(self, tracename):
-        self.scpi.write(f"CALC1:PAR:SEL '{tracename}'")
+    def set_trace(self, name: str = "S11", tracename: str = "Trc1", channel: int = 1) -> str:
+        # Ensure a trace exists and is selected
+        self.scpi.write(f"CALC{channel}:PAR:SDEF '{tracename}', '{name}'")
+        return 1
+
+    def select_trace(self, tracename, channel = 1):
+        self.scpi.write(f"CALC{channel}:PAR:SEL '{tracename}'")
         return 1
 
     def set_format_logmag(self) -> str:
@@ -85,17 +94,29 @@ class RSZVA(Instrument):
         return 1
 
     # ---- Data acquisition ----
-    def fetch_fdata(self) -> str:
+    def fetch_fdata(self) -> dict:
         """Formatted data (e.g., magnitude in current format). Returns CSV-like string."""
         data_str = self.scpi.query("CALC1:DATA? FDATA")
         nums = [float(x.strip()) for x in data_str.split(',') if x.strip()]
 
         return {"data": nums, "csv": data_str}
 
-    def fetch_sdata(self) -> str:
+    def fetch_cmd_complex(self, cmd) -> dict:
+        """Formatted data (e.g., magnitude in current format). Returns CSV-like string."""
+        data_str = self.scpi.query(cmd)
+        nums = [float(x.strip()) for x in data_str.split(',') if x.strip()]
+        
+        # Separate real and imaginary parts
+        real = nums[0::2]   # even indices
+        imag = nums[1::2]   # odd indices
+
+        return {"real": real, "imag": imag, "csv": data_str}
+
+
+    def fetch_sdata(self, channel=1) -> str:
         """Complex S-parameter data (real,imag pairs). Returns CSV-like string."""
         # Split by commas and strip whitespace
-        data_str = self.scpi.query("CALC1:DATA? SDATA")
+        data_str = self.scpi.query(f"CALC{channel}:DATA? SDATA")
         nums = [float(x.strip()) for x in data_str.split(',') if x.strip()]
         
         # Separate real and imaginary parts
@@ -115,7 +136,7 @@ class RSZVA(Instrument):
 
 
     # ---- Convenience measurement ----
-    def measure_trace(self, tracename, timeout_s=5) -> Dict[str, Any]:
+    def measure_trace(self, tracename, timeout_s=15) -> Dict[str, Any]:
         self.select_trace(tracename)
         self.sweep_single()
         self.scpi.query("*OPC?", timeout_s=timeout_s) 
@@ -132,11 +153,11 @@ class RSZVA(Instrument):
         self.set_continuous(on=True)
         return y
 
-    def measure_trace_ydata_complex(self, tracename, timeout_s=5) -> Dict[str, Any]:
-        self.select_trace(tracename)
-        self.sweep_single()
+    def measure_trace_ydata_complex(self, tracename, channel=1,timeout_s=5) -> Dict[str, Any]:
+        self.select_trace(tracename, channel)
+        self.sweep_single(channel = channel)
         self.scpi.query("*OPC?", timeout_s=timeout_s) 
-        y = self.fetch_sdata()
+        y = self.fetch_sdata(channel = channel)
         self.set_continuous(on=True)
         return y
 
@@ -146,30 +167,47 @@ class RSZVA(Instrument):
                 'b1': self.measure_trace_ydata_complex('Trcb1'), 
                 'a2': self.measure_trace_ydata_complex('Trca2'), 
                 'b2': self.measure_trace_ydata_complex('Trcb2')}
-    
-    def init_vector_receiver(self):
+    def init_channel(self, channel:int = 1):
+        self.scpi.write(f":CONF:CHAN{channel}:STAT ON")
+        self.clear_syserror()
+
+    def init_vector_receiver(self, window:int = 2):
         
         # write to zva example: CALCulate1:PARameter:DEFine 'Trc3', 'A1D1'
         # manual has how to do external generator also. I am pretty sure these are returned as voltages but that needs to be confirmed
 
+        self.scpi.write(f"C:SENSe1:CORRection:EWAVe:STATe ON")
         self.scpi.write(f"CALC{self.channel}:PAR:SDEF 'Trca1', 'A{self.input_port}D{self.input_port}'")
         self.scpi.write(f"CALC{self.channel}:PAR:SDEF 'Trca2', 'A{self.output_port}D{self.input_port}'")
         self.scpi.write(f"CALC{self.channel}:PAR:SDEF 'Trcb1', 'B{self.input_port}D{self.input_port}'")
         self.scpi.write(f"CALC{self.channel}:PAR:SDEF 'Trcb2', 'B{self.output_port}D{self.input_port}'")
+        self.scpi.write(f"DISP:WIND{window}:STAT OFF")
+        self.clear_syserror()
+        self.scpi.write(f"DISP:WIND{window}:STAT ON")
+        self.scpi.write(f"DISP:WIND{window}:TRAC1:FEED 'Trca1'")
+        self.scpi.write(f"DISP:WIND{window}:TRAC2:FEED 'Trca2'")
+        self.scpi.write(f"DISP:WIND{window}:TRAC3:FEED 'Trcb1'")
+        self.scpi.write(f"DISP:WIND{window}:TRAC4:FEED 'Trcb2'")
 
     def get_error_terms(self, filename) -> Dict[str, Any]:
         self.set_cal_file(filename) 
-        return {'directivity_input': self.scpi.query(f"CORR:CDAT? 'DIRECTIVITY',{self.input_port},0"),
-        'srcmatch_input': self.scpi.query(f"CORR:CDAT? 'SRCMATCH',{self.input_port},0"),
-        'refltrack_input': self.scpi.query(f"CORR:CDAT? 'REFLTRACK',{self.input_port},0"),
-        'loadmatch_input': self.scpi.query(f"CORR:CDAT? 'LOADMATCH',{self.input_port},{self.output_port}"),
-        'transtrack_input2output': self.scpi.query(f"CORR:CDAT? 'TRANSTRACK',{self.input_port},{self.output_port}"),
-        'directivity_output': self.scpi.query(f"CORR:CDAT? 'DIRECTIVITY',{self.output_port},0"),
-        'srcmatch_output': self.scpi.query(f"CORR:CDAT? 'SRCMATCH',{self.output_port},0"),
-        'refltrack_output': self.scpi.query(f"CORR:CDAT? 'REFLTRACK',{self.output_port},0"),
-        'loadmatch_output': self.scpi.query(f"CORR:CDAT? 'LOADMATCH',{self.output_port},{self.input_port}"),
-        'transtrack_output2input': self.scpi.query(f"CORR:CDAT? 'TRANSTRACK',{self.output_port},{self.input_port}")}
-
+        timeout_ms = self.scpi.t.timeout_ms
+        self.scpi.t.timeout_ms = timeout_ms*10
+        directivitytemp = self.fetch_cmd_complex(f"CORR:CDAT? 'DIRECTIVITY',{self.input_port},0")
+        self.set_points(int(len(directivitytemp["imag"])))
+        out =  {'freq': self.read_x_axis(),
+            'directivity_input': directivitytemp,
+            'srcmatch_input': self.fetch_cmd_complex(f"CORR:CDAT? 'SRCMATCH',{self.input_port},0"),
+            'refltrack_input': self.fetch_cmd_complex(f"CORR:CDAT? 'REFLTRACK',{self.input_port},0"),
+            'loadmatch_input': self.fetch_cmd_complex(f"CORR:CDAT? 'LOADMATCH',{self.input_port},{self.output_port}"),
+            'transtrack_input2output': self.fetch_cmd_complex(f"CORR:CDAT? 'TRANSTRACK',{self.input_port},{self.output_port}"),
+            'directivity_output': self.fetch_cmd_complex(f"CORR:CDAT? 'DIRECTIVITY',{self.output_port},0"),
+            'srcmatch_output': self.fetch_cmd_complex(f"CORR:CDAT? 'SRCMATCH',{self.output_port},0"),
+            'refltrack_output': self.fetch_cmd_complex(f"CORR:CDAT? 'REFLTRACK',{self.output_port},0"),
+            'loadmatch_output': self.fetch_cmd_complex(f"CORR:CDAT? 'LOADMATCH',{self.output_port},{self.input_port}"),
+            'transtrack_output2input': self.fetch_cmd_complex(f"CORR:CDAT? 'TRANSTRACK',{self.output_port},{self.input_port}")}
+        self.scpi.t.timeout_ms = timeout_ms
+        return out
 
     def set_cal_file(self, cal_filename, channel=1):
         try:

@@ -1,0 +1,2 @@
+{"schema": "1.0.0", "ts": "2025-10-27T18:21:36Z", "test": "test_VectorReceiver", "step": "call:set_freq_fixed", "inst": "VNA", "method": "set_freq_fixed", "result": 1, "frequency": 5, "sweep_file": "loadsweeps/test_Tuner_sweep.csv", "s11_calfile": "20251029_s11.cal"}
+{"schema": "1.0.0", "ts": "2025-10-27T18:21:36Z", "test": "test_VectorReceiver", "step": "call:set_points", "inst": "VNA", "method": "set_points", "result": 1, "frequency": 5, "sweep_file": "loadsweeps/test_Tuner_sweep.csv", "s11_calfile": "20251029_s11.cal"}

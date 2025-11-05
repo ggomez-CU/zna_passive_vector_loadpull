@@ -1,0 +1,8 @@
+{
+  "schema": "1.0.0",
+  "bench": "bench_validation",
+  "ts": "2025-10-24T21:18:44Z",
+  "test": "calibrate_VNA",
+  "out": "runs\\calibrate_VNA\\2025-10-24_1518",
+  "hash": "e088ef75f0c9"
+}

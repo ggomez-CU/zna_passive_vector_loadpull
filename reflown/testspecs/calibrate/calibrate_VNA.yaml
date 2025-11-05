@@ -1,53 +1,50 @@
-name: calibrate_DMM
+name: calibrate_VNA
 requires: [VNA]
 
-parameters: {SOLT_calfile: "", SOL_PMcalfile: "", setup_file: ""}
+parameters: {cal_filename: {default: "20251029_2portPVR_2.cal"}, setup_filename: {default: "PassiveLoadpullCalState.zvx"}}
 
 plot:
   type: grid
   rows: 1
-  cols: 1
+  cols: 2
   panels:
-    - {title: "DMM1", x: "sample", y: "Vdc", refresh: False}
+    - { title: "Error Terms Real", 
+      x: "error_data.freq.x_data",
+      y: ["error_data.directivity_input.real",
+            "error_data.srcmatch_input.real",
+            "error_data.refltrack_input.real",
+            "error_data.loadmatch_input.real",
+            "error_data.transtrack_input2output.real",
+            "error_data.directivity_output.real",
+            "error_data.srcmatch_output.real",
+            "error_data.refltrack_output.real",
+            "error_data.loadmatch_output.real",
+            "error_data.transtrack_output2input.real"],
+      polar: false, 
+      refresh: true }
+
+    - { title: "Error Terms Imag", 
+      x: "error_data.freq.x_data",
+      y: ["error_data.directivity_input.imag",
+            "error_data.srcmatch_input.imag",
+            "error_data.refltrack_input.imag",
+            "error_data.loadmatch_input.imag",
+            "error_data.transtrack_input2output.imag",
+            "error_data.directivity_output.imag",
+            "error_data.srcmatch_output.imag",
+            "error_data.refltrack_output.imag",
+            "error_data.loadmatch_output.imag",
+            "error_data.transtrack_output2input.imag"],
+      polar: false, 
+      refresh: true }
 
 steps:
-  - call:
-      inst: DMM1
-      method: preset
-  - call:
-      inst: DMM1
-      method: configure_voltage_dc
-
   - calibrate:
-      name: DMM1_noise_std
+      name: error_terms
+      force: true
       do:
-        - sweep:
-            var: sample
-            from: 1
-            to:   30
-            step: 1
-            do:
-              - measure:
-                  inst: DMM1
-                  method: measure_voltage
-                  save_as: Vdc
-              # Update running statistics state (no [] appends)
-              - transform:
-                  method: running_std_update
-                  args:
-                    value: ${Vdc}
-                    state: ${tmp.noise_state}
-                  save_as: tmp.noise_state
-              - results_update: {}
-
-        # Finalize to std and count, save std as the calibration value
-        - transform:
-            method: running_std_finalize
-            args:
-              state: ${tmp.noise_state}
-            save_as: tmp.noise
-
-        # Emit one results point for visibility/plotting
-        - results_update: {}
-
-      save: ${tmp.noise}
+        - call: {inst: VNA, method: clear_syserror}
+        - call: {inst: VNA, method: load_setup, args: ["${setup_filename}"]}
+        - measure: {inst: VNA, method: get_error_terms, args: ["${cal_filename}"], save_as: error_data} 
+      save: ${error_data}
+  - results_update: {}

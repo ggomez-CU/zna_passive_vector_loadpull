@@ -1,0 +1,46 @@
+name: test_VectorReceiver
+requires: [VNA, SOURCETUNER, LOADTUNER]
+
+parameters: {frequency: {default: 5}, sweep_file: {default: "loadsweeps/test_Tuner_sweep_long.csv"}, 
+    PVR_cal: {default: "20251028_2port_14PVR.cal"}, s11_calfile: {default: "20251027_port3.cal"}}
+
+plot:
+  type: grid
+  rows: 1
+  cols: 3
+  panels:
+    - { title: "Expected", x: "plotgamma.angle_rad", y: "plotgamma.mag", polar: true, refresh: false }
+    - { title: "Load Gamma", x: "gamma.gamma_L.angle_rad", y: "gamma.gamma_L.mag", polar: true, refresh: false }
+    - { title: "S11", x: "loads11.angle_rad", y: "loads11.mag", polar: true, refresh: false }
+
+steps:
+  - call: {inst: VNA, method: set_freq_fixed, args: ["${frequency}","GHz"]}
+  - call: {inst: VNA, method: set_points, args: [1]}
+  - call: {inst: VNA, method: init_channel, args: [2]}
+  - call: {inst: VNA, method: set_cal_file, args: ["${s11_calfile}", 2]}
+  - call: {inst: VNA, method: set_cal_file, args: ["${PVR_cal}",  1]}
+  - call: {inst: VNA, method: set_trace, args: ["S11", "meas_s11", 2]}
+  - call: {inst: SOURCETUNER, method: set_gamma, args: ["${frequency}", 0, 0] }
+  - call: {inst: VNA, method: init_vector_receiver}
+       
+  - transform: {
+      method: load_sweep_len,
+      args: { file: "${sweep_file}" },
+      save_as: "sweep_info"}
+  - sweep:
+      var: idx
+      from: 0
+      to: "${sweep_info.count}"
+      step: 1
+      do:
+        - transform: {
+            method: load_sweep_point,
+            args: { file: "${sweep_file}", index: "${idx}" },
+            save_as: "point" }
+        - call: { inst: LOADTUNER, method: set_gamma, args: ["${frequency}", "${point.gamma_mag}", "${point.gamma_deg}"] }
+        - measure: {inst: VNA, method: capture_point, save_as: wave_data} 
+        - measure: {inst: VNA, method: measure_trace_ydata_complex, args: ["meas_s11",  2], save_as: s11} 
+        - transform: {method: gamma_from_corrwave, args: {"wave_data": "${wave_data}"}, save_as: gamma}
+        - transform: {method: set_plot_gamma, args: {"mag": "${point.gamma_mag}", "deg": "${point.gamma_deg}"}, save_as: plotgamma}
+        - transform: {method: set_plot_gamma, args: {"real": "${s11.real}", "imag": "${s11.imag}"}, save_as: loads11}
+        - results_update: {}

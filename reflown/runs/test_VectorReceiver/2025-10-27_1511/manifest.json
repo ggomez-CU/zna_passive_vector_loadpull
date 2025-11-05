@@ -1,0 +1,8 @@
+{
+  "schema": "1.0.0",
+  "bench": "bench_validation",
+  "ts": "2025-10-27T21:11:16Z",
+  "test": "test_VectorReceiver",
+  "out": "runs\\test_VectorReceiver\\2025-10-27_1511",
+  "hash": "fd45a331d51d"
+}

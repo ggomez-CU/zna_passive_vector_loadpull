@@ -1,0 +1,16 @@
+- transform:
+    method: load_sweep_len
+    args: { file: "${sweep_file}" }
+    save_as: "sweep_info"
+- sweep:
+  var: idx
+  from: 0
+  to: "${sweep_info.count}"
+  step: 1
+  do:
+    - transform:
+      method: load_sweep_point
+      args: { file: "${sweep_file}", index: "${idx}" }
+      save_as: "point"
+    - call: { inst: LOADTUNER, method: set_gamma, args: ["${freq_ghz}", "${point.gamma_mag}", "${point.gamma_deg}"] }
+    - measure: { inst: VNA, method: capture_point, save_as: "wave_data" }

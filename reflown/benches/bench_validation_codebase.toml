@@ -6,8 +6,8 @@ name = "bench_validation"
 VNA = "TCPIP0::10.0.0.10::INSTR"
 DMM1 = "GPIB1::11::INSTR"
 DMM2 = "GPIB1::13::INSTR"
-LOADTUNER = {driver="FocusTuner", resource="TCPIP0::10.0.0.1::23::SOCKET", read_term="CCMT->", write_term="\r\n", timeout_ms=2000}
-SOURCETUNER = {driver="FocusTuner", resource="TCPIP0::10.0.0.2::23::SOCKET", read_term="CCMT->", write_term="\r\n", timeout_ms=2000}
+LOADTUNER = {driver="FocusTuner", resource="TCPIP0::10.0.0.1::23::SOCKET",  tuner_cal_path="tunercal/3987_1to18GHz.txt", read_term="CCMT->", write_term="\r\n", timeout_ms=2000}
+SOURCETUNER = {driver="FocusTuner", resource="TCPIP0::10.0.0.2::23::SOCKET",  tuner_cal_path="tunercal/3671_1to18GHz.txt", read_term="CCMT->", write_term="\r\n", timeout_ms=2000}
 
 
 [timeouts]

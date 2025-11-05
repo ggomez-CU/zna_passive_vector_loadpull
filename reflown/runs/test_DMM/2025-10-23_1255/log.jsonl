@@ -1,6 +1,0 @@
-{"schema": "1.0.0", "ts": "2025-10-23T18:56:02Z", "test": "test_DMM", "step": "call:preset", "inst": "DMM1", "method": "preset", "result": "OK"}
-{"schema": "1.0.0", "ts": "2025-10-23T18:56:02Z", "test": "test_DMM", "step": "call:configure_voltage_dc", "inst": "DMM1", "method": "configure_voltage_dc", "result": "OK"}
-{"schema": "1.0.0", "ts": "2025-10-23T18:56:02Z", "test": "test_DMM", "step": "call:preset", "inst": "DMM2", "method": "preset", "result": "OK"}
-{"schema": "1.0.0", "ts": "2025-10-23T18:56:02Z", "test": "test_DMM", "step": "call:configure_voltage_dc", "inst": "DMM2", "method": "configure_voltage_dc", "result": "OK"}
-{"schema": "1.0.0", "ts": "2025-10-23T18:56:03Z", "test": "test_DMM", "step": "measure:measure_voltage", "inst": "DMM1", "method": "measure_voltage", "Vdc1": -6.648e-06, "sample": 1.0}
-{"schema": "1.0.0", "ts": "2025-10-23T18:56:03Z", "test": "test_DMM", "step": "measure:measure_voltage", "inst": "DMM2", "method": "measure_voltage", "Vdc2": 2.381e-06, "sample": 1.0, "Vdc1": -6.648e-06}

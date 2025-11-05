@@ -1,9 +1,0 @@
-name: test_registry
-requires: [LOADTUNER, VNA, DMM1, DMM2]
-steps:
-  - measure: {inst: LOADTUNER, method: idn, save_as: load_tuner_config} 
-  - measure: {inst: SOURCETUNER, method: idn, save_as: source_tuner_config}
-  - measure: {inst: VNA, method: idn, save_as: VNA_idn}
-  - measure: {inst: DMM1, method: idn, save_as: DMM1_idn}
-  - measure: {inst: DMM2, method: idn, save_as: DMM2_idn}
-

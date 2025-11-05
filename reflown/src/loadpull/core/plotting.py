@@ -87,6 +87,11 @@ class LivePlotWriter(JsonlWriter):
                 except Exception:
                     pass
                 ax = self.fig.add_subplot(rows, cols, i + 1, projection='polar')
+                # Enforce unit circle (r in [0,1])
+                try:
+                    ax.set_rlim(0, 1)
+                except Exception:
+                    pass
 
             ax.set_title(title)
             ax.grid(True, which='both', linestyle=':')
@@ -105,7 +110,6 @@ class LivePlotWriter(JsonlWriter):
             # Resolve x value
             # print(rec)
             x_val = _get(rec, st.x_key) if st.x_key else self._idx
-            # print(breakhere)
             if st.refresh:
                 # Expect sequences for refresh mode
                 try:
@@ -155,6 +159,7 @@ class LivePlotWriter(JsonlWriter):
                         y_scalars.append(float(y_val))
                     except (TypeError, ValueError):
                         ok = False
+                        # print(breakhere)
                         break
                 if not ok:
                     continue
@@ -171,25 +176,37 @@ class LivePlotWriter(JsonlWriter):
             if not st.lines:
                 labels = [yk for yk in st.y_keys]
                 st.lines = []
-                for ys, label in zip(st.y_series, labels):
-                    # print(ys)
-                    (line,) = st.ax.plot(st.x_vals, ys, marker='o', linewidth=1, label=label)
-                    st.lines.append(line)
+                if st.polar:
+                    for ys, label in zip(st.y_series, labels):
+                        coll = st.ax.scatter(st.x_vals, ys, s=16, label=label)
+                        st.lines.append(coll)
+                else:
+                    for ys, label in zip(st.y_series, labels):
+                        # print(ys)
+                        (line,) = st.ax.plot(st.x_vals, ys, marker='o', linewidth=1, label=label)
+                        st.lines.append(line)
                 if not st.polar:
                     st.ax.set_xlabel(st.x_key or 'index')
                     st.ax.set_ylabel(st.title)
                 if len(st.lines) > 1:
                     st.ax.legend(loc='best', fontsize='small')
-                st.ax.relim(); st.ax.autoscale_view(tight=True)
+                if not st.polar:
+                    st.ax.relim(); st.ax.autoscale_view(tight=True)
             else:
-                for line, ys in zip(st.lines, st.y_series):
-                    # print(ys)
-                    line.set_data(st.x_vals, ys)
-                st.ax.relim(); st.ax.autoscale_view(tight=True)
+                if st.polar:
+                    import numpy as _np
+                    for coll, ys in zip(st.lines, st.y_series):
+                        offs = _np.c_[st.x_vals, ys]
+                        coll.set_offsets(offs)
+                else:
+                    for line, ys in zip(st.lines, st.y_series):
+                        line.set_data(st.x_vals, ys)
+                if not st.polar:
+                    st.ax.relim(); st.ax.autoscale_view(tight=True)
         self._idx += 1
-        # self.fig.canvas.draw_idle()
-        self.fig.canvas.draw()
-        self.fig.canvas.flush_events()
+        self.fig.canvas.draw_idle()
+        # self.fig.canvas.draw()
+        # self.fig.canvas.flush_events()
         plt.pause(1)
 
 

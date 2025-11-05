@@ -1,0 +1,2 @@
+[console_scripts]
+lp-plotter = plotter.app:main

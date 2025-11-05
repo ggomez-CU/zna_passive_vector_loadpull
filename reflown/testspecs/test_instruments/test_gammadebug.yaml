@@ -1,0 +1,21 @@
+name: test_debug
+requires: [VNA, SOURCETUNER, LOADTUNER]
+
+parameters: {frequency: {default: 5}, sweep_file: {default: "loadsweeps/test_Tuner_sweep.csv"}}
+
+plot:
+  type: grid
+  rows: 1
+  cols: 3
+  panels:
+    - { title: "Expected", x: "gamma.angle_rad", y: "gamma.mag", polar: true, refresh: true }
+    - { title: "Load Gamma", x: "loadgamma.angle_rad", y: loadgamma.mag, polar: true, refresh: False }
+    - { title: "Source Gamma", x: "sourcegamma.angle_rad", y: sourcegamma.mag, polar: true, refresh: False }
+
+steps:
+  - call: { inst: LOADTUNER, method: preset }
+  - call: { inst: SOURCETUNER, method: preset }
+  - measure: {inst: VNA, method: capture_point, save_as: wave_data} 
+  - transform: {method: eq3_gammaL, args: {"wave_data": "${wave_data}"}, save_as: gamma}
+  - transform: {method: set_plot_gamma, args: {"mag": "${gamma.gamma_L.mag}", "deg": "${gamma.gamma_L.deg}"}, save_as: loadgamma}
+  - results_update: {}
