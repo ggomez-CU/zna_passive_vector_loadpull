@@ -14,9 +14,12 @@ import sqlite3
 from .model import RunInfo
 
 
-def _db_path(root: Path) -> Path:
-    # Database lives under <reflown>/runs/plotter_database.sqlite; root is <reflown>/plotter
-    return Path(root).resolve().parents[0] / "runs" / "plotter_database.sqlite"
+def _db_path(_root: Path) -> Path:
+    """Database lives under <reflown>/runs/plotter_database.sqlite.
+
+    Keep path consistent with data.db_loaders._db_path.
+    """
+    return Path(__file__).resolve().parents[3] / "runs" / "plotter_database.sqlite"
 
 
 def discover_runs_grouped_db(root: str | Path) -> Dict[str, List[RunInfo]]:

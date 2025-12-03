@@ -16,6 +16,7 @@ src/loadpull/core/scpi.py
 src/loadpull/core/sequencing.py
 src/loadpull/core/session.py
 src/loadpull/core/transforms.py
+src/loadpull/core/transformsDEPRECEATED.py
 src/loadpull/core/transport.py
 src/loadpull/core/tunercal.py
 src/loadpull/instruments/Focus_CCMT1808.py

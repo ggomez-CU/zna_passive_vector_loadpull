@@ -20,12 +20,15 @@ class TestTypeRegistry:
         print("init: TestTypeRegistry._register_defaults", flush=True)
         self._layouts["test_VectorReceiver"] = {
             "Gamma": [
-                {"title": "Gamma_L (complex plane)", "mode": "scatter", "xy": ("gamma.gamma_L.real", "gamma.gamma_L.imag"), "columns": ["gamma.gamma_L.real", "gamma.gamma_L.imag"], "xlabel": "Re", "ylabel": "Im"},
-                {"title": "|Gamma_L| vs sample", "x": "sample_index", "y": ["gamma.gamma_L.mag"], "columns": ["sample_index", "gamma.gamma_L.mag"], "xlabel": "sample", "ylabel": "|Gamma_L|"},
+                {"title": "Gamma_L (complex plane)", "mode": "scatter", "xy": ("gamma.gamma_L.real", "gamma.gamma_L.imag"), "xlabel": "Re", "ylabel": "Im"},
+                {"title": "|Gamma_L| vs sample", "x": "sample_index", "y": ["gamma.gamma_L.mag"], "xlabel": "sample", "ylabel": "|Gamma_L|"},
             ],
         }
+        self._layouts["calibrate_DMM"] = [
+            {"title": "Mean convergence", "x": "tmp.noise_state.count", "y": ["tmp.noise_state.mean"], "columns": ["tmp.noise_state.m2"], "xlabel": "sample", "ylabel": "mean"},
+        ]
         self._layouts["default"] = [
-            {"title": "|Gamma_L| vs sample", "x": "sample_index", "y": ["gamma.gamma_L.mag"], "columns": ["sample_index", "gamma.gamma_L.mag"], "xlabel": "sample", "ylabel": "|Gamma_L|"},
+            {"title": "|Gamma_L| vs sample", "x": "sample_index", "y": ["gamma.gamma_L.mag"], "xlabel": "sample", "ylabel": "|Gamma_L|"},
         ]
 
     def tabs_for(self, test_type: str) -> Dict[str, List[dict]]:

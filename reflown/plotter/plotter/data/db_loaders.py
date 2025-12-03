@@ -11,8 +11,8 @@ from .model import RunInfo
 
 
 def _db_path() -> Path:
-    # <repo>/reflown/plotter/plotter/data/db_loaders.py -> parents[2] == <repo>/reflown
-    return Path(__file__).resolve().parents[2] / "runs" / "plotter_database.sqlite"
+    # Keep path consistent with discovery._db_path: <repo>/reflown/runs/plotter_database.sqlite
+    return Path(__file__).resolve().parents[3] / "runs" / "plotter_database.sqlite"
 
 
 def _sanitize(name: str) -> str:

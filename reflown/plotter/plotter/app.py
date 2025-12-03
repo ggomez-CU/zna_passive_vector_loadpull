@@ -19,6 +19,7 @@ from .ui.runs_panel import RunsPanel
 from .ui.filters_panel import FiltersPanel
 from .ui.metadata_panel import MetadataPanel
 from .ui.issues_panel import IssuesPanel
+from .ui.data_table_panel import DataTablePanel
 from .plots.deck import PlotDeck
 
 
@@ -59,6 +60,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.runs = RunsPanel(self)
         self.filters = FiltersPanel(self)
         self.metadata = MetadataPanel(self)
+        self.data_table = DataTablePanel(self)
         self.issues = IssuesPanel(self)
 
         #Set locations for widgets
@@ -77,9 +79,18 @@ class MainWindow(QtWidgets.QMainWindow):
         dock_meta.setWidget(self.metadata)
         self.addDockWidget(QtCore.Qt.RightDockWidgetArea, dock_meta)
 
+        dock_data = QtWidgets.QDockWidget("Data", self)
+        dock_data.setWidget(self.data_table)
+        self.addDockWidget(QtCore.Qt.BottomDockWidgetArea, dock_data)
+
         dock_issues = QtWidgets.QDockWidget("Issues", self)
         dock_issues.setWidget(self.issues)
         self.addDockWidget(QtCore.Qt.BottomDockWidgetArea, dock_issues)
+        # Place issues to the right of data and bias initial width 2:1
+        self.splitDockWidget(dock_data, dock_issues, QtCore.Qt.Horizontal)
+        self.resizeDocks([dock_data, dock_issues], [2, 1], QtCore.Qt.Horizontal)
+        # Bias initial height: bottom docks about one third of the window
+        self.resizeDocks([dock_data], [max(1, self.height() // 3)], QtCore.Qt.Vertical)
 
         self.status = self.statusBar()
         self._update_title()
@@ -137,31 +148,28 @@ class MainWindow(QtWidgets.QMainWindow):
         cols: list[str] = []
         for specs in self.registry.tabs_for(ttype).values():
             for spec in specs:
-                cols.extend(spec.get("y", []) or [])
-                cols.extend(spec.get("x", []) or [])
-                xy = spec.get("xy")
-                if xy:
-                    cols.extend([c for c in xy if c])
-                for ser in spec.get("series", []) or []:
-                    if ser.get("x"):
-                        cols.append(ser["x"])
-                    if ser.get("y"):
-                        cols.append(ser["y"])
-                    xy = spec.get("xy")
-                    if xy:
-                        cols.extend([c for c in xy if c])
-                cols.extend(spec.get("columns", []) or [])
-        self.metadata.set_columns(sorted(set(cols)))
+                cols.extend(PlotDeck.needed_columns_for_spec(spec))
+        cols = sorted(set(cols))
+        self.metadata.set_columns(cols)
+        self._options_state = {"columns": cols}
+        self._update_data_table()
 
     def _on_filters(self, ranges: dict) -> None:
         print("init: MainWindow._on_filters", flush=True)
         self._filters_state = dict(ranges)
         self.deck.apply_filters(self._filters_state)
+        self._update_data_table()
 
     def _on_options(self, opts: dict) -> None:
         print("init: MainWindow._on_options", flush=True)
         self._options_state = dict(opts)
         self.deck.set_options(self._options_state)
+        self._update_data_table()
+
+    def _update_data_table(self) -> None:
+        cols = self._options_state.get("columns", [])
+        data = self.deck.get_columns_data(cols)
+        self.data_table.set_data(cols, data)
 
     def closeEvent(self, event: QtGui.QCloseEvent) -> None:  # type: ignore[name-defined]
         super().closeEvent(event)

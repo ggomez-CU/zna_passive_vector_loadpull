@@ -55,6 +55,31 @@ def _install_enhanced_traceback() -> None:
 
 
 def populate(root: Path, db_path: Path, verbose: bool = True, overwrite: bool = True) -> None:
+    def _collect_columns_from_results(path: Path) -> Set[str]:
+        cols: Set[str] = set()
+        if not path.exists():
+            return cols
+        with path.open("r", encoding="utf-8") as f:
+            for line in f:
+                try:
+                    obj = json.loads(line)
+                except Exception:
+                    obj = {}
+                if not isinstance(obj, dict):
+                    continue
+                for k, v in obj.items():
+                    if isinstance(v, list):
+                        if len(v) == 1:
+                            cols.add(k)
+                        elif len(v) >= 2:
+                            # Arrays stored separately
+                            continue
+                        else:
+                            cols.add(k)
+                    else:
+                        cols.add(k)
+        return cols
+
     store = SQLiteStore(db_path)
     # Prefer filesystem discovery for population; compare with DB for diagnostics
     db_groups, fs_groups, missing_in_db, missing_on_disk = compare_db_vs_fs(root)
@@ -78,6 +103,12 @@ def populate(root: Path, db_path: Path, verbose: bool = True, overwrite: bool = 
     # Track per-type column union and run counts
     type_columns: Dict[str, Set[str]] = {t: set() for t in groups.keys()}
     type_counts: Dict[str, int] = {t: len(runs) for t, runs in groups.items()}
+    # Seed columns from the last run of each type so every run uses a non-empty column set
+    for t, lr in last_run_by_type.items():
+        try:
+            type_columns[t].update(_collect_columns_from_results(lr.path / "results.jsonl"))
+        except Exception:
+            pass
     # Seed columns with any previously stored columns for each test type
     # for t in groups.keys():
     #     prev_cols = store.get_type_columns(t)
@@ -162,8 +193,8 @@ def populate(root: Path, db_path: Path, verbose: bool = True, overwrite: bool = 
                                 else:
                                     normalized[k] = v
                             parsed_rows.append(normalized)
-                            if lr and lr.timestamp == run.timestamp:
-                                type_columns[run.test_type].update(normalized.keys())
+                            # Union columns across all runs (pre-seeded with last run)
+                            type_columns[run.test_type].update(normalized.keys())
                         # Persist typed rows based on current columns for this type
                         cols_list = sorted(type_columns[run.test_type])
                         store.insert_typed_results_rows(run.test_type, run.path, run.timestamp, cols_list, parsed_rows)

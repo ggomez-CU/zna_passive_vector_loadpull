@@ -5,7 +5,7 @@ from __future__ import annotations
 Supports multi-run overlays and log Y toggle.
 """
 
-from typing import Dict, List
+from typing import Dict, List, Set
 
 from PySide6 import QtWidgets
 import pyqtgraph as pg
@@ -29,6 +29,32 @@ class PlotDeck(QtWidgets.QWidget):
         v = QtWidgets.QVBoxLayout(self)
         v.setContentsMargins(0, 0, 0, 0)
         v.addWidget(self._tabs)
+
+    @staticmethod
+    def needed_columns_for_spec(spec: dict) -> List[str]:
+        cols: Set[str] = set()
+        xk = spec.get("x")
+        if xk:
+            cols.add(xk)
+        for yk in spec.get("y", []) or []:
+            if yk:
+                cols.add(yk)
+        xy = spec.get("xy")
+        if xy:
+            cols.update([c for c in xy if c])
+        for series in spec.get("series") or []:
+            sx = series.get("x")
+            if sx:
+                cols.add(sx)
+            sy = series.get("y")
+            if sy:
+                cols.add(sy)
+            sxy = series.get("xy")
+            if sxy:
+                cols.update([c for c in sxy if c])
+        # Allow explicit columns to add extra/non-axis fields
+        cols.update(spec.get("columns", []) or [])
+        return sorted(cols)
 
     def set_log_mode(self, enabled: bool) -> None:
         self._log = enabled
@@ -82,19 +108,10 @@ class PlotDeck(QtWidgets.QWidget):
         specs_all: List[dict] = []
         for specs in self._tab_specs.values():
             specs_all.extend(specs)
-        needed: List[str] = []
+        needed: Set[str] = set()
         for s in specs_all:
-            needed.extend(s.get("columns", []) or [])
-            ser = s.get("series") or []
-            for e in ser:
-                if e.get("x"):
-                    needed.append(e["x"])
-                if e.get("y"):
-                    needed.append(e["y"])
-            xk = s.get("x")
-            if xk:
-                needed.append(xk)
-        self._needed = sorted(set(needed))
+            needed.update(self.needed_columns_for_spec(s))
+        self._needed = sorted(needed)
         self._begin_load()
 
     def _begin_load(self) -> None:
@@ -146,6 +163,14 @@ class PlotDeck(QtWidgets.QWidget):
                                     idx += 1
         # keep log mode
         self.set_log_mode(self._log)
+
+    def get_columns_data(self, columns: List[str]) -> Dict[str, List[float]]:
+        """Return data for requested columns for each loaded run."""
+        out = []
+        for run in self._runs:
+            cols = self._run_cols.get(str(run.path), {})
+            out.append((run.timestamp, {c: cols.get(c, []) for c in columns}))
+        return out
 
     def export_current(self, kind: str) -> None:
         # Minimal export: active tab, first plot

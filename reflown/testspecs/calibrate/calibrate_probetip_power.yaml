@@ -1,0 +1,47 @@
+name: cal_probetip_power
+requires: [TUNER, VNA, PM]
+
+parameters: {DUT_calfile: Cal1.cal, PM_calfile: Cal2.cal, PM_sparameters: PM.s1p}
+
+steps:
+  - calibrate:
+      name: output_coupling
+      force: false
+      do:
+        - call: {inst: TUNER, method: preset}
+        - measure: 
+            inst: VNA
+            method: get_error_terms
+            args: 
+              filename: "${PM_calfile}"
+            save_as: PM_errorterms
+        - measure: 
+            inst: VNA
+            method: get_error_terms
+            args: 
+              filename: "${DUT_calfile}"
+            save_as: DUT_errorterms
+        - measure: 
+            inst: VNA
+            method: capture_point
+            save_as: wave_values
+        - call: {inst: ZVA, method: set_points, args: 1}
+        - sweep:
+            var: freq
+            from: "${f_start_ghz}"
+            to:   "${f_stop_ghz}"
+            step: "${f_step_ghz}"
+            do:
+            - call: {inst: ZVA, method: set_freq_fixed, args: {f_hz: "${freq}"}}
+            - measure: {inst: PM, method: get_power, save_as: PM_power."${freq}" }
+        - transform:
+            method: output_b2probe2_coupling
+            args: 
+              DUT_calfile: "${DUT_errorterms}"
+              PM_calfile:  "${PM_errorterms}"
+              PM_power: "${PM_power}"
+              PM_s1p: "${PM_sparameters}"
+              wave_values: "${wave_values}"
+            save_as: error_terms
+      save: C_b2_probe2
+
