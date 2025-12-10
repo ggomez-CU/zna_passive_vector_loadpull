@@ -4,7 +4,7 @@ import re
 import sqlite3
 import time
 from pathlib import Path
-from typing import Optional, Dict, Any, Iterable, List, Tuple
+from typing import Optional, Dict, Any, Iterable, List, Tuple, Callable
 import json
 
 
@@ -51,6 +51,30 @@ class SQLiteStore:
                 run_path TEXT NOT NULL,
                 run_timestamp TEXT,
                 UNIQUE(test_type, run_path)
+            )
+            """
+        )
+        # File stats used by ingest to detect changes
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS file_stats (
+                path TEXT PRIMARY KEY,
+                size INTEGER,
+                row_count INTEGER,
+                last_updated REAL
+            )
+            """
+        )
+        # Schema snapshot per test type (last run used to derive columns)
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS type_schema (
+                test_type TEXT PRIMARY KEY,
+                last_run_id INTEGER,
+                last_size INTEGER,
+                last_row_count INTEGER,
+                columns TEXT,
+                last_updated REAL
             )
             """
         )
@@ -261,6 +285,28 @@ class SQLiteStore:
             )
             self._conn.commit()
 
+    # File stats helpers
+    def get_file_stats(self, path: Path) -> Optional[Dict[str, Any]]:
+        cur = self._conn.cursor()
+        row = cur.execute(
+            "SELECT size,row_count,last_updated FROM file_stats WHERE path=?",
+            (str(path),),
+        ).fetchone()
+        if not row:
+            return None
+        return {"size": int(row[0] or 0), "row_count": int(row[1] or 0), "last_updated": float(row[2] or 0.0)}
+
+    def upsert_file_stats(self, path: Path, size: int, row_count: int) -> None:
+        cur = self._conn.cursor()
+        cur.execute(
+            """
+            INSERT INTO file_stats(path,size,row_count,last_updated) VALUES(?,?,?,?)
+            ON CONFLICT(path) DO UPDATE SET size=excluded.size,row_count=excluded.row_count,last_updated=excluded.last_updated
+            """,
+            (str(path), int(size), int(row_count), time.time()),
+        )
+        self._conn.commit()
+
     # Typed (columnar) per-test data table management
     @staticmethod
     def _sanitize_col(name: str) -> str:
@@ -355,3 +401,96 @@ class SQLiteStore:
         if batch:
             cur.executemany(sql, batch)
             self._conn.commit()
+
+    def max_row_index(self, test_type: str, run_path: Path, run_timestamp: Optional[str] = None) -> int:
+        table, _ = self._ensure_typed_data_table(test_type, [])
+        cur = self._conn.cursor()
+        rid = self._get_or_create_run_id(test_type, run_path, run_timestamp)
+        row = cur.execute(
+            f"SELECT MAX(row_index) FROM {table} WHERE run_id=?",
+            (rid,),
+        ).fetchone()
+        return int(row[0]) if row and row[0] is not None else 0
+
+    def delete_typed_from_index(self, test_type: str, run_path: Path, start_index: int, run_timestamp: Optional[str] = None) -> None:
+        table, _ = self._ensure_typed_data_table(test_type, [])
+        cur = self._conn.cursor()
+        rid = self._get_or_create_run_id(test_type, run_path, run_timestamp)
+        cur.execute(f"DELETE FROM {table} WHERE run_id=? AND row_index>=?", (rid, int(start_index)))
+        self._conn.commit()
+
+    def get_type_schema(self, test_type: str) -> Optional[Dict[str, Any]]:
+        cur = self._conn.cursor()
+        row = cur.execute(
+            "SELECT last_run_id,last_size,last_row_count,columns,last_updated FROM type_schema WHERE test_type=?",
+            (test_type,),
+        ).fetchone()
+        if not row:
+            return None
+        try:
+            cols = json.loads(row[3]) if row[3] else []
+        except Exception:
+            cols = []
+        return {
+            "last_run_id": int(row[0]) if row[0] is not None else None,
+            "last_size": int(row[1] or 0),
+            "last_row_count": int(row[2] or 0),
+            "columns": cols,
+            "last_updated": float(row[4] or 0.0),
+        }
+
+    def upsert_type_schema(self, test_type: str, last_run_id: int, last_size: int, last_row_count: int, columns: List[str]) -> None:
+        cur = self._conn.cursor()
+        cur.execute(
+            """
+            INSERT INTO type_schema(test_type,last_run_id,last_size,last_row_count,columns,last_updated)
+            VALUES(?,?,?,?,?,?)
+            ON CONFLICT(test_type) DO UPDATE SET
+              last_run_id=excluded.last_run_id,
+              last_size=excluded.last_size,
+              last_row_count=excluded.last_row_count,
+              columns=excluded.columns,
+              last_updated=excluded.last_updated
+            """,
+            (test_type, int(last_run_id), int(last_size), int(last_row_count), json.dumps(columns), time.time()),
+        )
+        self._conn.commit()
+
+    def load_columns(
+        self,
+        test_type: str,
+        run_path: Path,
+        columns: List[str],
+        progress_cb: Optional[Callable[[int, int], None]] = None,
+    ) -> Dict[str, List[float]]:
+        cur = self._conn.cursor()
+        row = cur.execute(
+            f"SELECT id FROM runs WHERE test_type='{test_type}' AND run_path='{str(run_path)}'"
+        ).fetchone()
+        out: Dict[str, List[float]] = {k: [] for k in columns}
+        if not row:
+            if progress_cb:
+                progress_cb(0, 0)
+            return out
+        run_id = int(row[0])
+        table = f"data__{self._table_name(test_type)}"
+        col_clause = ",".join(columns)
+        rows = cur.execute(
+            f"SELECT row_index,{col_clause} FROM {table} WHERE run_id={run_id} ORDER BY row_index"
+        )    
+        total = 0
+        for total, rec in enumerate(rows, start=1):
+            _, *values = rec
+            for idx, col in enumerate(columns):
+                val = values[idx]
+                if isinstance(val, str):
+                    try:
+                        val = float(val)
+                    except Exception:
+                        continue
+                if val is None:
+                    continue
+                out[col].append(float(val))
+            if progress_cb:
+                progress_cb(total, total)
+        return out

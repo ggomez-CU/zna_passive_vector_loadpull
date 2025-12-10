@@ -1,0 +1,11 @@
+[bench]
+name = "bench_simple"
+
+[visa]
+# Either a host:port string or a VISA resource. Keep it simple for now.
+VNA = "TCPIP0::10.0.0.10::INSTR"
+LOADTUNER = {driver="FocusTuner", resource="TCPIP0::10.0.0.1::23::SOCKET",  tuner_cal_path="tunercal/3987_1to18GHz.txt", read_term="CCMT->", write_term="\r\n", timeout_ms=2000}
+
+[timeouts]
+query_s = 3.0
+settle_s = 0.2

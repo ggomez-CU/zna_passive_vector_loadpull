@@ -7,7 +7,8 @@ import traceback
 from pathlib import Path
 from typing import Dict, Set
 
-from .data.discovery import discover_runs_grouped_fs, discover_runs_grouped_db, compare_db_vs_fs
+from .data.discovery import discover_runs_grouped_fs, compare_db_vs_fs, load_db_path
+from .data.ingest import run_once as ingest_run_once
 from .database.sqlite_store import SQLiteStore
 
 
@@ -56,137 +57,30 @@ def _install_enhanced_traceback() -> None:
 
 def populate(root: Path, db_path: Path, verbose: bool = True, overwrite: bool = True) -> None:
     store = SQLiteStore(db_path)
-    # Prefer filesystem discovery for population; compare with DB for diagnostics
+    print(db_path)
+    # Ingest once using the unified ingest pipeline
+    ingest_run_once(root, store)
+
+    # Compare DB vs FS for diagnostics only
     db_groups, fs_groups, missing_in_db, missing_on_disk = compare_db_vs_fs(root)
     groups = fs_groups
     # Determine the last run per test type by timestamp string
     last_run_by_type = {t: max(runs, key=lambda r: r.timestamp) for t, runs in groups.items() if runs}
     total = sum(len(v) for v in groups.values())
-    done = 0
     if verbose:
         print(f"Discovered {total} runs across {len(groups)} test types (filesystem)")
         if missing_in_db:
             print(f"[WARN] {len(missing_in_db)} runs on disk missing from DB:")
             for t, p in sorted(missing_in_db):
-                print(f"  + {t}: {p}")
+                print(f"  + {t}: {p}\n")
         if missing_on_disk:
             print(f"[WARN] {len(missing_on_disk)} runs in DB missing on disk:")
-                
             for t, p in sorted(missing_on_disk):
-                print(f"  - {t}: {p}")
-
-    # Track per-type column union and run counts
-    type_columns: Dict[str, Set[str]] = {t: set() for t in groups.keys()}
-    type_counts: Dict[str, int] = {t: len(runs) for t, runs in groups.items()}
-    # Seed columns with any previously stored columns for each test type
-    # for t in groups.keys():
-    #     prev_cols = store.get_type_columns(t)
-    #     if prev_cols:
-    #         type_columns[t].update(prev_cols)
-
-    for runs in groups.values():
-        for run in runs:
-            done += 1
-            # try:
-            st = run.data_file.stat()
-            size = int(st.st_size)
-            mtime = float(st.st_mtime)
-            old = store.get_meta(run.data_file, run.test_type)
-            if old is None:
-                store.insert_meta(
-                    path=run.data_file,
-                    size=size,
-                    mtime=mtime,
-                    test_type=run.test_type,
-                    run_timestamp=run.timestamp,
-                    file_hash=None,
-                )
-                if verbose:
-                    print(f"[NEW] meta {run.test_type}: {run.data_file}")
-            else:
-                changed = (old.get("size") != size) or (abs(old.get("mtime", 0.0) - mtime) > 1e-6)
-                if changed and overwrite:
-                    store.overwrite_meta(
-                        path=run.data_file,
-                        size=size,
-                        mtime=mtime,
-                        test_type=run.test_type,
-                        run_timestamp=run.timestamp,
-                        file_hash=None,
-                    )
-                    if verbose:
-                        print(f"[UPD] meta {run.test_type}: {run.data_file}")
-
-            # Ingest results.jsonl into per-type data table
-            results_path = run.path / "results.jsonl"
-            if results_path.exists():
-                rst = results_path.stat()
-                r_old = store.get_meta(results_path, run.test_type)
-                # Ingest when we have no rows yet for this run, or file size changed, or no prior meta
-                need_ingest = store.results_count_for_run(run.test_type, run.path, run.timestamp) == 0
-                # print(breakhere)
-                if (r_old is None) or need_ingest or (r_old.get("size") != rst.st_size):
-                    store.delete_results_for_run(run.test_type, run.path)
-
-                    with results_path.open("r", encoding="utf-8") as f:
-                        lines = [line.rstrip("\n") for line in f]
-                    # Update column union and prepare typed rows
-                    # Only take columns from the last run for this test type
-                        lr = last_run_by_type.get(run.test_type)
-                    
-                        parsed_rows = []
-                        array_elems = []  # list of (row_index, field, elem_index, value)
-                        for row_idx, line in enumerate(lines):
-                            try:
-                                obj = json.loads(line)
-                            except Exception:
-                                obj = {}
-                            if not isinstance(obj, dict):
-                                obj = {}
-                            # Split arrays: len==1 -> keep scalar; len>=2 -> move to array_elems and drop from typed
-                            normalized: dict = {}
-                            for k, v in obj.items():
-                                if isinstance(v, list):
-                                    if len(v) == 1:
-                                        normalized[k] = v[0]
-                                    elif len(v) >= 2:
-                                        for ei, ev in enumerate(v):
-                                            try:
-                                                val = float(ev)
-                                            except Exception:
-                                                val = None
-                                            array_elems.append((row_idx, k, ei, val))
-                                        # Do not keep in typed columns
-                                    else:
-                                        normalized[k] = None
-                                else:
-                                    normalized[k] = v
-                            parsed_rows.append(normalized)
-                            if lr and lr.timestamp == run.timestamp:
-                                type_columns[run.test_type].update(normalized.keys())
-                        # Persist typed rows based on current columns for this type
-                        cols_list = sorted(type_columns[run.test_type])
-                        store.insert_typed_results_rows(run.test_type, run.path, run.timestamp, cols_list, parsed_rows)
-                        # Persist array elements
-                        if array_elems:
-                            store.insert_array_elements(run.test_type, run.path, run.timestamp, array_elems)
-                    store.overwrite_meta(
-                        path=results_path,
-                        size=int(rst.st_size),
-                        mtime=float(rst.st_mtime),
-                        test_type=run.test_type,
-                        run_timestamp=run.timestamp,
-                        file_hash=None,
-                    )
-                    if verbose:
-                        print(f"[INGEST] results {run.test_type}: {results_path} ({len(lines)} rows)")
-
-            # except Exception as e:
-            #     print(f"[ERR] {run.data_file}: {e}")
-            if verbose and (done % 50 == 0 or done == total):
-                print(f"Progress: {done}/{total}")
+                print(f"  - {t}: {p}\n")
 
     # Refresh columns from the last run for each type so columns always reflect the latest file
+    type_columns: Dict[str, Set[str]] = {t: set() for t in groups.keys()}
+    type_counts: Dict[str, int] = {t: len(runs) for t, runs in groups.items()}
     for t, lr in last_run_by_type.items():
         try:
             rpath = lr.path / "results.jsonl"
@@ -222,7 +116,7 @@ def main() -> None:
     here = Path(__file__).resolve()
     # Default root as the plotter folder so discovery uses ../runs
     default_root = here.parents[1]
-    default_db = here.parents[2] / "runs" / "plotter_database.sqlite"
+    default_db = load_db_path()
 
     ap = argparse.ArgumentParser(description="Populate the plotter SQLite database from runs")
     ap.add_argument("--root", type=Path, default=default_root, help="Root directory (plotter root; runs expected under ../runs)")

@@ -62,6 +62,13 @@ class RSZVA(Instrument):
         self.scpi.write(f"SOUR1:POW {p_dbm}")
         return 1
 
+    def set_atten(self, atten: float, port: int = output_port) -> str:
+        atten_round = 5 * round(atten/5)
+        if atten_round > 35: atten_round=35
+        if atten_round < 0: atten_round=0
+        self.scpi.write(f"POW:ATT {port}, {atten_round}")
+        return 1
+
     # ---- Sweep control ----
     def sweep_single(self, channel=1) -> str:
         self.set_continuous(on=False)
@@ -167,6 +174,7 @@ class RSZVA(Instrument):
                 'b1': self.measure_trace_ydata_complex('Trcb1'), 
                 'a2': self.measure_trace_ydata_complex('Trca2'), 
                 'b2': self.measure_trace_ydata_complex('Trcb2')}
+    
     def init_channel(self, channel:int = 1):
         self.scpi.write(f":CONF:CHAN{channel}:STAT ON")
         self.clear_syserror()
@@ -195,7 +203,7 @@ class RSZVA(Instrument):
         self.scpi.t.timeout_ms = timeout_ms*10
         directivitytemp = self.fetch_cmd_complex(f"CORR:CDAT? 'DIRECTIVITY',{self.input_port},0")
         self.set_points(int(len(directivitytemp["imag"])))
-        out =  {'freq': self.read_x_axis(),
+        out =  {'freq_hz': self.read_x_axis(),
             'directivity_input': directivitytemp,
             'srcmatch_input': self.fetch_cmd_complex(f"CORR:CDAT? 'SRCMATCH',{self.input_port},0"),
             'refltrack_input': self.fetch_cmd_complex(f"CORR:CDAT? 'REFLTRACK',{self.input_port},0"),

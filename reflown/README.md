@@ -14,6 +14,8 @@ loadpull run testspecs/power_sweep.yaml --bench benches/bench_default.toml --out
 
 cd post 
 pip install -e .
+
+pl-plotter
 ```
 ## Instruments, Transports, and YAML Workflow
 

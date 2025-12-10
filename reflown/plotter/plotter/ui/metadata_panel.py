@@ -10,12 +10,12 @@ class MetadataPanel(QtWidgets.QWidget):
     sig_options_changed = QtCore.Signal(dict)
 
     def __init__(self, parent=None) -> None:
-        print("init: MetadataPanel.__init__", flush=True)
+        # print("init: MetadataPanel.__init__", flush=True)
         super().__init__(parent)
         self._build()
 
     def _build(self) -> None:
-        print("init: MetadataPanel._build", flush=True)
+        # print("init: MetadataPanel._build", flush=True)
         v = QtWidgets.QVBoxLayout(self)
         self.tree = QtWidgets.QTreeWidget()
         self.tree.setHeaderLabels(["Signals"])
@@ -23,7 +23,7 @@ class MetadataPanel(QtWidgets.QWidget):
         v.addWidget(self.tree)
 
     def set_columns(self, columns: Iterable[str]) -> None:
-        print("init: MetadataPanel.set_columns", flush=True)
+        # print("init: MetadataPanel.set_columns", flush=True)
         self.tree.blockSignals(True)
         self.tree.clear()
         parent = QtWidgets.QTreeWidgetItem(["Signals"])
@@ -37,7 +37,7 @@ class MetadataPanel(QtWidgets.QWidget):
         self.tree.blockSignals(False)
 
     def _emit(self) -> None:
-        print("init: MetadataPanel._emit", flush=True)
+        # print("init: MetadataPanel._emit", flush=True)
         cols: List[str] = []
         root = self.tree.topLevelItem(0)
         if root:

@@ -14,14 +14,19 @@ import sqlite3
 from .model import RunInfo
 
 
-def _db_path(root: Path) -> Path:
+def load_db_path() -> Path:
+    # parameters: root: Path
     # Database lives under <reflown>/runs/plotter_database.sqlite; root is <reflown>/plotter
-    return Path(root).resolve().parents[0] / "runs" / "plotter_database.sqlite"
+    # root_abs = Path(root).resolve()
+    return Path("C:/Users/grgo8200/Documents/GitHub/zna_passive_vector_loadpull/zna_passive_vector_loadpull/reflown") / "runs" / "plotter_database.sqlite"
 
 
 def discover_runs_grouped_db(root: str | Path) -> Dict[str, List[RunInfo]]:
-    root_path = Path(root)
-    dbp = _db_path(root_path)
+    # root_path = Path(root)
+    # print(root_path)
+    # dbp = _db_path(root_path)
+    dbp = load_db_path()
+    runs_root = dbp.parent
     groups: Dict[str, List[RunInfo]] = {}
     if not dbp.exists():
         return groups
@@ -31,6 +36,8 @@ def discover_runs_grouped_db(root: str | Path) -> Dict[str, List[RunInfo]]:
         "SELECT test_type, run_path, run_timestamp FROM runs ORDER BY test_type, run_timestamp"
     ):
         p = Path(rpath)
+        if not p.is_absolute():
+            p = (runs_root / p).resolve(strict=False)
         ri = RunInfo(
             test_type=ttype,
             timestamp=str(ts or p.name),

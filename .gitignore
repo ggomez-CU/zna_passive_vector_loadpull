@@ -1,2 +1,3 @@
 reflown/.venv/
 /reflown/.venv
+/reflown/runs/plotter_database.sqlite

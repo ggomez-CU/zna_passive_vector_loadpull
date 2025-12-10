@@ -1,0 +1,8 @@
+{
+  "schema": "1.0.0",
+  "bench": "bench_simple",
+  "ts": "2025-12-10T17:05:08Z",
+  "test": "test_VNA",
+  "out": "runs\\test_VNA\\2025-12-10_1005",
+  "hash": "35428afbf643"
+}

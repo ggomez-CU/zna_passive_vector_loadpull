@@ -1,0 +1,64 @@
+name: test_VNA_atten
+requires: [VNA, LOADTUNER]
+
+parameters: {cal_filename: {default: "20251209_outputtunertest.cal"}, 
+  setup_filename: {default: "PassiveLoadpullCalState.zvx"},
+  test_frequency: {default: 10},
+  sweep_file: {default: "loadsweeps/load_sweep_attenvalidation.csv"}}
+
+plot:
+  type: grid
+  rows: 2
+  cols: 2
+  panels:
+    - {title: "VNA Point Capture", x: 'wave_data.x.x_data', y: ["wave_data.a1.real","wave_data.a2.real"], refresh: True}
+    - {title: "Load Impedance", x: "corr_gamma_out.gamma_L.angle_rad",y: "corr_gamma_out.gamma_L.mag", polar: True, refresh: True }
+    - { title: "Expected", x: "gamma.angle_rad", y: "gamma.mag", polar: true, refresh: false }
+    - { title: "s11", x: "s11.real", y: "s11.imag", polar: false, refresh: false }
+    
+    
+
+steps:
+  - transform:
+      method: loadpull_sweep_len
+      args: { file: "${sweep_file}" }
+      save_as: "sweep_info"
+
+  - call: {inst: VNA, method: clear_syserror}
+  - call: {inst: VNA, method: load_setup, args: ["${setup_filename}"]}
+  - measure: {inst: VNA, method: get_error_terms, args: ["${cal_filename}"], save_as: error_data} 
+  - results_update: {}
+  - call: {inst: VNA, method: init_vector_receiver}
+  - call: {inst: VNA, method: set_trace, args: ["S11","s11"]}
+  - call: {inst: VNA, method: set_freq_fixed, args: ["${test_frequency}","GHz"]}
+  - call: {inst: VNA, method: set_points, args: [1]}
+
+  - sweep:
+      var: atten
+      from: 0
+      to:   35
+      step: 5
+      do:
+        - call: {inst: VNA, method: set_atten, args: ["${atten}"]}
+        - sweep:
+            var: idx
+            from: 0
+            to: "${sweep_info.count}"
+            step: 1
+            do:
+              - transform:
+                  method: loadpull_sweep_point
+                  args: { file: "${sweep_file}", index: "${idx}" }
+                  save_as: "point"
+              - call: { inst: LOADTUNER, method: set_gamma, args: ["${test_frequency}", "${point.gamma_mag}", "${point.gamma_deg}"] }
+              - measure: {inst: VNA, method: capture_point, save_as: wave_data}
+              - measure: {inst: VNA, method: measure_trace_ydata_complex, args: {"s11"} ,save_as: s11} 
+              - transform: 
+                  method: corr_gamma 
+                  args:
+                    wave_data: ${wave_data}
+                  save_as: corr_gamma_out
+              - transform: {method: set_plot_gamma, args: {"mag":"${point.gamma_mag}", "deg":"${point.gamma_deg}"}, save_as: gamma}
+
+              - results_update: {}
+      

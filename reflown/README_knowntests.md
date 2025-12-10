@@ -12,6 +12,7 @@ loadpull list-tests
 
 - loadpull run testspecs\test_instruments\test_registry.yaml --bench benches\bench_validation_codebase.toml 
 - loadpull run testspecs\test_instruments\test_VNA.yaml --bench benches\bench_validation_codebase.toml 
+- loadpull run testspecs\test_instruments\test_VNA_atten.yaml --bench benches\bench_validation_codebase.toml 
 - loadpull run testspecs\test_instruments\test_TUNER.yaml --bench benches\bench_validation_codebase.toml 
 - loadpull run testspecs\test_instruments\test_VectorReceiver.yaml --bench benches\bench_validation_codebase.toml 
 - Get-Content runs\calibrate_VNA\2025-10-24_1449\results.jsonl | ForEach-Object { $_ | ConvertFrom-Json | ConvertTo-Json -Depth 10 }
