@@ -31,6 +31,9 @@ class TestTypeRegistry:
                 {"title": "|Gamma_L| vs sample", "x": "row_index", "y": ["gamma.gamma_L.mag"], "columns": ["row_index", "gamma.gamma_L.mag"], "xlabel": "sample", "ylabel": "|Gamma_L|"},
             ],
         }
+        self._layouts["calibrate_DMM"] = [
+            {"title": "Mean convergence", "x": "tmp.noise_state.count", "y": ["tmp.noise_state.mean"], "columns": ["tmp.noise_state.m2"], "xlabel": "sample", "ylabel": "mean"},
+        ]
         self._layouts["default"] = [
             {"title": "|Gamma_L| vs sample", "x": "row_index", "y": ["gamma.gamma_L.mag"], "columns": ["row_index", "gamma.gamma_L.mag"], "xlabel": "sample", "ylabel": "|Gamma_L|"},
         ]

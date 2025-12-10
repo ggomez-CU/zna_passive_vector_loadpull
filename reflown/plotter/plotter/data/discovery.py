@@ -14,12 +14,12 @@ import sqlite3
 from .model import RunInfo
 
 
-def load_db_path() -> Path:
-    # parameters: root: Path
-    # Database lives under <reflown>/runs/plotter_database.sqlite; root is <reflown>/plotter
-    # root_abs = Path(root).resolve()
-    return Path("C:/Users/grgo8200/Documents/GitHub/zna_passive_vector_loadpull/zna_passive_vector_loadpull/reflown") / "runs" / "plotter_database.sqlite"
+def _db_path(_root: Path) -> Path:
+    """Database lives under <reflown>/runs/plotter_database.sqlite.
 
+    Keep path consistent with data.db_loaders._db_path.
+    """
+    return Path(__file__).resolve().parents[3] / "runs" / "plotter_database.sqlite"
 
 def discover_runs_grouped_db(root: str | Path) -> Dict[str, List[RunInfo]]:
     # root_path = Path(root)

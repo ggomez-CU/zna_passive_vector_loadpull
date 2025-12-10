@@ -12,7 +12,7 @@ loadpull list-tests
 loadpull run testspecs/power_sweep.yaml --bench benches/bench_default.toml --out runs/$(date +%F_%H%M)
 
 
-cd post 
+cd plotter
 pip install -e .
 
 pl-plotter
