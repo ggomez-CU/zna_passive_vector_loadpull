@@ -1,0 +1,37 @@
+name: test_TUNERS
+requires: [LOADTUNER]
+
+parameters: {freq_ghz: {default: 5}, sweep_file: {default: "loadsweeps/test_Tuner_sweep.csv"}}
+
+plot:
+  type: grid
+  rows: 1
+  cols: 3
+  panels:
+    - { title: "Expected", x: "gamma.angle_rad", y: "gamma.mag", polar: true, refresh: false }
+    - { title: "Load Position", x: "loadposition.x",y: ["loadposition.y_low","loadposition.y_high"], polar: False, refresh: False }
+
+steps:
+  - call: {inst: LOADTUNER, method: preset}
+  - measure: {inst: LOADTUNER, method: config_info, save_as: loadtuner_config}
+  - measure: {inst: LOADTUNER, method: pos, save_as: loadposition}
+  - results_update: {}
+  - transform: {
+      method: loadpull_sweep_len,
+      args: { file: "${sweep_file}" },
+      save_as: "sweep_info"}
+  - sweep:
+      var: idx
+      from: 0
+      to: "${sweep_info.count}"
+      step: 1
+      do:
+        - transform: {
+            method: loadpull_sweep_point,
+            args: { file: "${sweep_file}", index: "${idx}" },
+            save_as: "point"}
+        - call: { inst: LOADTUNER, method: set_gamma, args: ["${freq_ghz}", "${point.gamma_mag}", "${point.gamma_deg}"] }
+        - measure: {inst: LOADTUNER, method: pos, save_as: loadposition}
+        - transform: {method: set_plot_gamma, args: {"mag":"${point.gamma_mag}", "deg":"${point.gamma_deg}"}, save_as: gamma}
+        - results_update: {}
+

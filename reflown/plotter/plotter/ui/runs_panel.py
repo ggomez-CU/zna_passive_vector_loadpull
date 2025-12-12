@@ -12,7 +12,7 @@ class RunsPanel(QtWidgets.QTreeWidget):
     sig_runs_selected = QtCore.Signal(list)
 
     def __init__(self, parent=None) -> None:
-        # print("init: RunsPanel.__init__", flush=True)
+        print("init: RunsPanel.__init__", flush=True)
         super().__init__(parent)
         self.setHeaderLabels(["Runs"])
         self._cache: Dict[str, List[RunInfo]] = {}
@@ -21,7 +21,7 @@ class RunsPanel(QtWidgets.QTreeWidget):
         self.itemChanged.connect(self._on_item_changed)
 
     def load_groups(self, grouped: Dict[str, List[RunInfo]]) -> None:
-        # print("init: RunsPanel.load_groups", flush=True)
+        print("init: RunsPanel.load_groups", flush=True)
         self._cache = grouped
         self.clear()
         for test, runs in grouped.items():
@@ -36,14 +36,14 @@ class RunsPanel(QtWidgets.QTreeWidget):
             parent.setExpanded(True)
 
     def refresh_if_changed(self, grouped: Dict[str, List[RunInfo]]) -> bool:
-        # print("init: RunsPanel.refresh_if_changed", flush=True)
+        print("init: RunsPanel.refresh_if_changed", flush=True)
         if sum(len(v) for v in grouped.values()) != sum(len(v) for v in self._cache.values()):
             self.load_groups(grouped)
             return True
         return False
 
     def _on_item_changed(self, item: QtWidgets.QTreeWidgetItem, _col: int) -> None:
-        # print("init: RunsPanel._on_item_changed", flush=True)
+        print("init: RunsPanel._on_item_changed", flush=True)
         data = item.data(0, QtCore.Qt.UserRole)
         if not isinstance(data, RunInfo):
             return

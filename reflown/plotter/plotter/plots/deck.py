@@ -5,24 +5,22 @@ from __future__ import annotations
 Supports multi-run overlays and log Y toggle.
 """
 
-from typing import Dict, List
+from typing import Dict, List, Set
+import csv
+import json
 from pathlib import Path
 
 from PySide6 import QtWidgets
 import pyqtgraph as pg
-import numpy as np
 
-from ..database.sqlite_store import SQLiteStore
+from ..data.db_loaders import load_columns_db
 from ..testtypes.registry import TestTypeRegistry
-from ..data.discovery import load_db_path
+
 
 class PlotDeck(QtWidgets.QWidget):
     def __init__(self, registry: TestTypeRegistry, parent=None) -> None:
         super().__init__(parent)
         self.registry = registry
-        # Open the SQLite store (default DB path under ../runs)
-        self._store = SQLiteStore(Path(load_db_path()))
-        print(load_db_path())
         self._tabs = QtWidgets.QTabWidget(self)
         self._plots: List[pg.PlotWidget] = []
         self._tab_specs: Dict[str, List[dict]] = {}
@@ -30,7 +28,6 @@ class PlotDeck(QtWidgets.QWidget):
         self._log = False
         self._runs: List[object] = []
         self._run_cols: Dict[str, Dict[str, List[float]]] = {}
-        self._col_map: Dict[str, str] = {}
 
         v = QtWidgets.QVBoxLayout(self)
         v.setContentsMargins(0, 0, 0, 0)
@@ -126,7 +123,7 @@ class PlotDeck(QtWidgets.QWidget):
         self._run_cols.clear()
         for run in self._runs:
             try:
-                cols = self._store.load_columns(run.test_type, run.path, self._needed, progress_cb=None)
+                cols = load_columns_db(run, self._needed, progress_cb=None)
             except Exception:
                 cols = {}
             self._run_cols[str(run.path)] = cols
@@ -134,12 +131,6 @@ class PlotDeck(QtWidgets.QWidget):
 
     def _render(self) -> None:
         pens_cycle = ["y", "c", "m", "w", "g", "r"]
-
-        def _col_name(name: str | None) -> str | None:
-            if not name:
-                return None
-            return self._col_map.get(name, name)
-
         for tab, specs in self._tab_specs.items():
             plots = self._tab_plots.get(tab, [])
             for i, spec in enumerate(specs):
@@ -148,113 +139,30 @@ class PlotDeck(QtWidgets.QWidget):
                 pw = plots[i]
                 pw.clear()
                 mode = spec.get("mode", "line")
-                single_series = mode not in ("scatter", "polar-scatter") and not spec.get("series") and len(spec.get("y", []) or []) == 1
-                is_scatter = mode == "scatter"
-                is_polar_scatter = mode == "polar-scatter"
-                is_polar_line = mode == "polar-line"
-                if single_series:
-                    try:
-                        if getattr(pw, "_legend_added", False) is not True:
-                            pw.addLegend()
-                            pw._legend_added = True  # type: ignore[attr-defined]
-                    except Exception:
-                        pass
                 for ridx, run in enumerate(self._runs):
                     cols = self._run_cols.get(str(run.path), {})
                     pen = spec.get("pen") or pens_cycle[ridx % len(pens_cycle)]
-                    if is_polar_scatter or is_polar_line:
-                        r_key = _col_name(spec.get("r"))
-                        theta_deg_key = _col_name(spec.get("theta_deg"))
-                        theta_rad_key = _col_name(spec.get("theta_rad"))
-                        r_vals = cols.get(r_key or spec.get("r"), [])
-                        theta_deg_vals = cols.get(theta_deg_key or spec.get("theta_deg"))
-                        theta_rad_vals = cols.get(theta_rad_key or spec.get("theta_rad"))
-                        if theta_deg_vals is None and theta_rad_vals is None:
-                            continue
-                        try:
-                            r_arr = np.asarray(r_vals, dtype=float)
-                            if theta_rad_vals is not None:
-                                theta_arr = np.asarray(theta_rad_vals, dtype=float)
-                            else:
-                                theta_arr = np.deg2rad(np.asarray(theta_deg_vals, dtype=float))
-                            if r_arr.size == 0 or theta_arr.size == 0:
-                                continue
-                            # Align lengths
-                            n = min(r_arr.size, theta_arr.size)
-                            r_arr = r_arr[:n]
-                            theta_arr = theta_arr[:n]
-                            x = r_arr * np.cos(theta_arr)
-                            y = r_arr * np.sin(theta_arr)
-                        except Exception:
-                            continue
-                        color = pg.mkColor(pen)
-                        run_name = str(getattr(run, "timestamp", None) or getattr(run, "path", None) or f"run{ridx+1}")
-                        item = None
-                        if is_polar_scatter:
-                            item = pg.ScatterPlotItem(
-                                x,
-                                y,
-                                pen=pg.mkPen(color),
-                                brush=pg.mkBrush(color),
-                                size=6,
-                            )
-                            pw.addItem(item)
-                        else:
-                            item = pw.plot(x, y, pen=pen, name=run_name if single_series else None)
-                        legend = getattr(pw, "legend", None)
-                        if legend is None:
-                            try:
-                                legend = pw.addLegend()
-                            except Exception:
-                                legend = None
-                        if legend is not None:
-                            legend.addItem(item, run_name)
-                    elif mode == "scatter":
+                    if mode == "scatter":
                         xk, yk = spec.get("xy", (None, None))
-                        sx = _col_name(xk)
-                        sy = _col_name(yk)
-                        xs = cols.get(sx or xk, [])
-                        ys = cols.get(sy or yk, [])
-                        color = pg.mkColor(pen)
-                        pts = list(zip(xs, ys))
-                        s = pg.ScatterPlotItem(
-                            [p[0] for p in pts],
-                            [p[1] for p in pts],
-                            pen=pg.mkPen(color),
-                            brush=pg.mkBrush(color),
-                            size=6,
-                        )
-                        run_name = str(getattr(run, "timestamp", None) or getattr(run, "path", None) or f"run{ridx+1}")
+                        xs = cols.get(xk, [])
+                        ys = cols.get(yk, [])
+                        s = pg.ScatterPlotItem(pen=None, brush=pg.mkBrush(100, 150, 255, 200), size=5)
+                        s.addPoints([{"pos": (xs[j], ys[j])} for j in range(min(len(xs), len(ys)))])
                         pw.addItem(s)
-                        legend = getattr(pw, "legend", None)
-                        if legend is None:
-                            try:
-                                legend = pw.addLegend()
-                            except Exception:
-                                legend = None
-                        if legend is not None:
-                            legend.addItem(s, run_name)
                     else:
-                        x_key = _col_name(spec.get("x"))
-                        x = cols.get(x_key or spec.get("x")) or list(range(len(next(iter(cols.values()), []))))
+                        x = cols.get(spec.get("x")) or list(range(len(next(iter(cols.values()), []))))
                         for yk in spec.get("y", []):
-                            y_key = _col_name(yk)
-                            y = cols.get(y_key or yk, [])
+                            y = cols.get(yk, [])
                             if y:
-                                name = None
-                                if single_series:
-                                    run_name = getattr(run, "timestamp", None) or getattr(run, "path", None) or f"run{ridx+1}"
-                                    name = str(run_name)
-                                pw.plot(x, y, pen=pen, name=name)
+                                pw.plot(x, y, pen=pen)
                             else:
                                 # expand array series if available as yk[0], yk[1], ...
                                 idx = 0
                                 while True:
                                     key = f"{yk}[{idx}]"
-                                    mapped = self._col_map.get(key, key)
-                                    if mapped not in cols:
+                                    if key not in cols:
                                         break
-                                    pw.plot(x, cols.get(mapped, []), pen=pen)
+                                    pw.plot(x, cols.get(key, []), pen=pen)
                                     idx += 1
         # keep log mode
         self.set_log_mode(self._log)
@@ -268,16 +176,132 @@ class PlotDeck(QtWidgets.QWidget):
         return out
 
     def export_current(self, kind: str) -> None:
+        kind = kind.lower()
         # Minimal export: active tab, first plot
         tab = self._tabs.tabText(self._tabs.currentIndex()) if self._tabs.count() else None
         plots = self._tab_plots.get(tab or "", [])
         if not plots:
+            # Fallback to first available tab
+            for _, ps in self._tab_plots.items():
+                if ps:
+                    plots = ps
+                    break
+        if not plots:
             return
-        if kind.lower() in ("png", "svg"):
+        if kind in ("png", "svg"):
             import pyqtgraph.exporters
             exp_cls = pyqtgraph.exporters.ImageExporter if kind.lower() == "png" else pyqtgraph.exporters.SVGExporter
             exp = exp_cls(plots[0].plotItem)
             path, _ = QtWidgets.QFileDialog.getSaveFileName(self, f"Export {kind.upper()}", filter=f"*.{kind}")
             if path:
                 exp.export(path)
-        # CSV export could be added similarly by reusing loaded cols
+            return
+
+        # CSV of plotted columns (first plot in current tab)
+        if kind == "csv":
+            if not self._runs:
+                return
+            tab_specs = self._tab_specs.get(tab or "", [])
+            spec = tab_specs[0] if tab_specs else None
+            if not spec:
+                return
+            cols: List[str] = []
+            if spec.get("x"):
+                cols.append(spec["x"])
+            xy = spec.get("xy")
+            if xy:
+                cols.extend([c for c in xy if c])
+            for yk in spec.get("y", []):
+                if yk:
+                    cols.append(yk)
+            cols = [c for c in cols if c]
+            if not cols:
+                return
+            # Ensure columns are available (load missing ones)
+            for run in self._runs:
+                data = self._run_cols.get(str(run.path), {})
+                missing = [c for c in cols if c not in data]
+                if missing:
+                    extra = load_columns_db(run, missing, progress_cb=None)
+                    data.update(extra)
+                    self._run_cols[str(run.path)] = data
+            path, _ = QtWidgets.QFileDialog.getSaveFileName(self, "Export CSV", filter="*.csv")
+            if not path:
+                return
+            Path(path).parent.mkdir(parents=True, exist_ok=True)
+            with open(path, "w", newline="", encoding="utf-8") as fp:
+                writer = csv.writer(fp)
+                writer.writerow(["run", "row_index"] + cols)
+                for run in self._runs:
+                    data = self._run_cols.get(str(run.path), {})
+                    max_len = 0
+                    for c in cols:
+                        max_len = max(max_len, len(data.get(c, [])))
+                    for i in range(max_len):
+                        row = [run.timestamp, i]
+                        for c in cols:
+                            vals = data.get(c, [])
+                            row.append(vals[i] if i < len(vals) else "")
+                        writer.writerow(row)
+            return
+
+        if kind == "csv-all":
+            # Dump entire JSONL for first run to CSV (if available)
+            if not self._runs:
+                return
+            run = self._runs[0]
+            in_path = run.data_file if hasattr(run, "data_file") else None
+            if not in_path or not Path(in_path).exists():
+                return
+            path, _ = QtWidgets.QFileDialog.getSaveFileName(self, "Export CSV (All Fields)", filter="*.csv")
+            if not path:
+                return
+            src = Path(in_path)
+            dst = Path(path)
+            dst.parent.mkdir(parents=True, exist_ok=True)
+            if src.suffix.lower() == ".csv":
+                dst.write_bytes(src.read_bytes())
+                return
+            # Convert JSONL -> CSV (union of keys)
+            headers: Set[str] = set()
+            with src.open("r", encoding="utf-8") as fp:
+                for line in fp:
+                    line = line.strip()
+                    if not line:
+                        continue
+                    try:
+                        rec = json.loads(line)
+                    except json.JSONDecodeError:
+                        continue
+                    if isinstance(rec, dict):
+                        headers.update(str(k) for k in rec.keys() if not str(k).lower().endswith((".csv", "_csv")))
+            if not headers:
+                return
+            fieldnames = sorted(headers)
+            with dst.open("w", newline="", encoding="utf-8") as out_fp:
+                writer = csv.DictWriter(out_fp, fieldnames=fieldnames)
+                writer.writeheader()
+                with src.open("r", encoding="utf-8") as in_fp:
+                    for line in in_fp:
+                        line = line.strip()
+                        if not line:
+                            continue
+                        try:
+                            rec = json.loads(line)
+                        except json.JSONDecodeError:
+                            continue
+                        if not isinstance(rec, dict):
+                            continue
+                        row = {}
+                        for k in fieldnames:
+                            val = rec.get(k, "")
+                            if isinstance(val, list) and len(val) == 1:
+                                val = val[0]
+                            if isinstance(val, (list, dict)):
+                                try:
+                                    val = json.dumps(val, separators=(",", ":"))
+                                except Exception:
+                                    val = str(val)
+                            row[k] = "" if val is None else val
+                        writer.writerow(row)
+            return

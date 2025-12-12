@@ -10,12 +10,12 @@ class FiltersPanel(QtWidgets.QWidget):
     sig_filters_changed = QtCore.Signal(dict)
 
     def __init__(self, parent=None) -> None:
-        # print("init: FiltersPanel.__init__", flush=True)
+        print("init: FiltersPanel.__init__", flush=True)
         super().__init__(parent)
         self._build()
 
     def _build(self) -> None:
-        # print("init: FiltersPanel._build", flush=True)
+        print("init: FiltersPanel._build", flush=True)
         lay = QtWidgets.QFormLayout(self)
         self.freq_min = QtWidgets.QDoubleSpinBox(); self.freq_min.setRange(0, 1e12); self.freq_min.setDecimals(3)
         self.freq_max = QtWidgets.QDoubleSpinBox(); self.freq_max.setRange(0, 1e12); self.freq_max.setDecimals(3)
@@ -34,7 +34,7 @@ class FiltersPanel(QtWidgets.QWidget):
         lay.addRow(btn)
 
     def _emit(self) -> None:
-        # print("init: FiltersPanel._emit", flush=True)
+        print("init: FiltersPanel._emit", flush=True)
         self.sig_filters_changed.emit({
             "freq_min": self.freq_min.value(),
             "freq_max": self.freq_max.value(),

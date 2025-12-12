@@ -150,7 +150,6 @@ def _run_actions(
 
                 if cached is not None and not force:
                     ctx.cal_cache[name] = cached
-                    _set_mapping_value(env, name, cached)
                     ctx.writer.write_point(
                         test_name,
                         f"calibration:{name}",
@@ -158,16 +157,18 @@ def _run_actions(
                     )
                     continue
 
-                _run_actions(test_name, spec.get("do"), env, ctx)
+                # Run calibration steps in an isolated env so calibration artifacts
+                # do not leak into the main test env.
+                cal_env = dict(env)
+                _run_actions(test_name, spec.get("do"), cal_env, ctx)
 
                 if "save" not in spec:
                     raise ValueError(f"Calibration '{name}' must define a 'save' field")
 
-                value = _resolve(ctx, env, spec["save"])
+                value = _resolve(ctx, cal_env, spec["save"])
                 ctx.cal_cache[name] = value
                 ctx.cal_store.set(name, value)
                 ctx.cal_store.save()
-                _set_mapping_value(env, name, value)
                 ctx.writer.write_point(
                     test_name,
                     f"calibration:{name}",

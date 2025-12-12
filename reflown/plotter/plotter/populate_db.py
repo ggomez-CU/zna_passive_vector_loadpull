@@ -7,8 +7,7 @@ import traceback
 from pathlib import Path
 from typing import Dict, Set
 
-from .data.discovery import discover_runs_grouped_fs, compare_db_vs_fs, load_db_path
-from .data.ingest import run_once as ingest_run_once
+from .data.discovery import discover_runs_grouped_fs, discover_runs_grouped_db, compare_db_vs_fs
 from .database.sqlite_store import SQLiteStore
 
 
@@ -82,24 +81,22 @@ def populate(root: Path, db_path: Path, verbose: bool = True, overwrite: bool = 
         return cols
 
     store = SQLiteStore(db_path)
-    print(db_path)
-    # Ingest once using the unified ingest pipeline
-    ingest_run_once(root, store)
-
-    # Compare DB vs FS for diagnostics only
+    # Prefer filesystem discovery for population; compare with DB for diagnostics
     db_groups, fs_groups, missing_in_db, missing_on_disk = compare_db_vs_fs(root)
     groups = fs_groups
     # Determine the last run per test type by timestamp string
     last_run_by_type = {t: max(runs, key=lambda r: r.timestamp) for t, runs in groups.items() if runs}
     total = sum(len(v) for v in groups.values())
+    done = 0
     if verbose:
         print(f"Discovered {total} runs across {len(groups)} test types (filesystem)")
         if missing_in_db:
             print(f"[WARN] {len(missing_in_db)} runs on disk missing from DB:")
             for t, p in sorted(missing_in_db):
-                print(f"  + {t}: {p}\n")
+                print(f"  + {t}: {p}")
         if missing_on_disk:
             print(f"[WARN] {len(missing_on_disk)} runs in DB missing on disk:")
+                
             for t, p in sorted(missing_on_disk):
                 print(f"  - {t}: {p}")
 
@@ -221,8 +218,6 @@ def populate(root: Path, db_path: Path, verbose: bool = True, overwrite: bool = 
                 print(f"Progress: {done}/{total}")
 
     # Refresh columns from the last run for each type so columns always reflect the latest file
-    type_columns: Dict[str, Set[str]] = {t: set() for t in groups.keys()}
-    type_counts: Dict[str, int] = {t: len(runs) for t, runs in groups.items()}
     for t, lr in last_run_by_type.items():
         try:
             rpath = lr.path / "results.jsonl"
@@ -258,7 +253,7 @@ def main() -> None:
     here = Path(__file__).resolve()
     # Default root as the plotter folder so discovery uses ../runs
     default_root = here.parents[1]
-    default_db = load_db_path()
+    default_db = here.parents[2] / "runs" / "plotter_database.sqlite"
 
     ap = argparse.ArgumentParser(description="Populate the plotter SQLite database from runs")
     ap.add_argument("--root", type=Path, default=default_root, help="Root directory (plotter root; runs expected under ../runs)")

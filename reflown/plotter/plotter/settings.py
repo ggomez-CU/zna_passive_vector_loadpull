@@ -15,14 +15,14 @@ class Settings:
     APP = "Plotter"
 
     def __init__(self) -> None:
-        # print("init: Settings.__init__", flush=True)
+        print("init: Settings.__init__", flush=True)
         self._s = QtCore.QSettings(self.ORG, self.APP)
 
     def last_root(self) -> str | None:
-        # print("init: Settings.last_root", flush=True)
+        print("init: Settings.last_root", flush=True)
         v = self._s.value("last_root", type=str)
         return v or None
 
     def set_last_root(self, path: str) -> None:
-        # print("init: Settings.set_last_root", flush=True)
+        print("init: Settings.set_last_root", flush=True)
         self._s.setValue("last_root", path)

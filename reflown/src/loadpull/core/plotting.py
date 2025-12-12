@@ -30,10 +30,13 @@ class _PanelState:
     title: str
     x_key: str | None
     y_keys: List[str]
+    angle_keys: List[str]
+    mag_keys: List[str]
     refresh: bool
     polar: bool
     x_vals: List[float]
     y_series: List[List[float]]
+    angles_series: List[List[float]]
     lines: List[Any]
 
 
@@ -65,20 +68,39 @@ class LivePlotWriter(JsonlWriter):
                 title = p
                 x_key = None
                 y_keys = [p]
+                angle_keys: List[str] = []
+                mag_keys: List[str] = []
                 refresh = True
                 polar = False
             else:
                 title = p.get('title', f'panel_{i}')
                 x_key = p.get('x')
                 raw_y = p.get('y')
+                raw_angles = p.get('angle_rad')
+                raw_mags = p.get('mag')
                 if isinstance(raw_y, (list, tuple)):
                     y_keys = [str(k) for k in raw_y]
                 elif raw_y is None:
                     y_keys = []
                 else:
                     y_keys = [str(raw_y)]
+                if isinstance(raw_angles, (list, tuple)):
+                    angle_keys = [str(k) for k in raw_angles]
+                elif raw_angles is None:
+                    angle_keys = []
+                else:
+                    angle_keys = [str(raw_angles)]
+                if isinstance(raw_mags, (list, tuple)):
+                    mag_keys = [str(k) for k in raw_mags]
+                elif raw_mags is None:
+                    mag_keys = []
+                else:
+                    mag_keys = [str(raw_mags)]
+                if angle_keys or mag_keys:
+                    if len(angle_keys) != len(mag_keys):
+                        raise ValueError("Polar panels must define equal counts of 'mag' and 'angle_rad' entries")
                 refresh = p.get('refresh', True)
-                polar = bool(p.get('polar', False))
+                polar = bool(p.get('polar', False) or (angle_keys and mag_keys))
 
             # Replace axis with polar projection if requested
             if polar:
@@ -95,7 +117,22 @@ class LivePlotWriter(JsonlWriter):
 
             ax.set_title(title)
             ax.grid(True, which='both', linestyle=':')
-            self.panels.append(_PanelState(ax=ax, title=title, x_key=x_key, y_keys=y_keys, refresh=refresh, polar=polar, x_vals=[], y_series=[[] for _ in y_keys], lines=[]))
+            self.panels.append(
+                _PanelState(
+                    ax=ax,
+                    title=title,
+                    x_key=x_key,
+                    y_keys=y_keys,
+                    angle_keys=angle_keys if polar else [],
+                    mag_keys=mag_keys if polar else [],
+                    refresh=refresh,
+                    polar=polar,
+                    x_vals=[],
+                    y_series=[[] for _ in (mag_keys if polar else y_keys)],
+                    angles_series=[[] for _ in (mag_keys if polar else [])],
+                    lines=[],
+                )
+            )
         self._panel_count = len(self.panels)
         self._idx = 0 # fallback x when no x_key
 
@@ -105,84 +142,116 @@ class LivePlotWriter(JsonlWriter):
         # Update live plots
         rec = data # already includes sweep vars
         for st in self.panels:
-            if not st.y_keys:
+            if not st.y_keys and not (st.polar and st.angle_keys and st.mag_keys):
                 continue
-            # Resolve x value
-            # print(rec)
-            x_val = _get(rec, st.x_key) if st.x_key else self._idx
-            if st.refresh:
-                # Expect sequences for refresh mode
-                try:
-                    xs = [float(xd) for xd in x_val]
-                except TypeError:
-                    # Single scalar, coerce to list
+            if st.polar and st.angle_keys and st.mag_keys:
+                # New polar input: angle/mag pairs
+                angles_list: List[List[float]] = []
+                mags_list: List[List[float]] = []
+                labels: List[str] = []
+                for a_key, m_key in zip(st.angle_keys, st.mag_keys):
+                    ang_val = _get(rec, a_key)
+                    mag_val = _get(rec, m_key)
                     try:
-                        xs = [float(x_val)]
-                    except (TypeError, ValueError):
-                        continue
-                y_lists: List[List[float]] = []
-                ok = True
-                for y_key in st.y_keys:
-                    y_val = _get(rec, y_key)
-                    try:
-                        ys = [float(yd) for yd in y_val]
+                        angs = [float(v) for v in ang_val]
                     except TypeError:
                         try:
-                            ys = [float(y_val)]
+                            angs = [float(ang_val)]
+                        except (TypeError, ValueError):
+                            continue
+                    try:
+                        mags = [float(v) for v in mag_val]
+                    except TypeError:
+                        try:
+                            mags = [float(mag_val)]
+                        except (TypeError, ValueError):
+                            continue
+                    if len(angs) != len(mags):
+                        continue
+                    angles_list.append(angs)
+                    mags_list.append(mags)
+                    labels.append(m_key)
+                if not angles_list:
+                    continue
+                st.angles_series = angles_list
+                st.y_series = mags_list
+                # Keep labels aligned with filtered pairs
+                st.mag_keys = labels
+                if len(st.lines) and len(st.lines) != len(st.y_series):
+                    st.lines = []
+            else:
+                # Resolve x value
+                x_val = _get(rec, st.x_key) if st.x_key else self._idx
+                if st.refresh:
+                    # Expect sequences for refresh mode
+                    try:
+                        xs = [float(xd) for xd in x_val]
+                    except TypeError:
+                        # Single scalar, coerce to list
+                        try:
+                            xs = [float(x_val)]
+                        except (TypeError, ValueError):
+                            continue
+                    y_lists: List[List[float]] = []
+                    ok = True
+                    for y_key in st.y_keys:
+                        y_val = _get(rec, y_key)
+                        try:
+                            ys = [float(yd) for yd in y_val]
+                        except TypeError:
+                            try:
+                                ys = [float(y_val)]
+                            except (TypeError, ValueError):
+                                ok = False
+                                break
+                        y_lists.append(ys)
+                    if not ok:
+                        continue
+                    st.x_vals = xs
+                    # Resize y_series container if needed
+                    if len(st.y_series) != len(y_lists):
+                        st.y_series = [[] for _ in range(len(y_lists))]
+                    for i, ys in enumerate(y_lists):
+                        st.y_series[i] = ys
+                else:
+                    # Append scalar point
+                    try:
+                        x_scalar = float(x_val)
+                    except (TypeError, ValueError):
+                        continue
+                    st.x_vals.append(x_scalar)
+
+                    y_scalars: List[float] = []
+                    ok = True
+                    for y_key in st.y_keys:
+                        y_val = _get(rec, y_key)
+                        try:
+                            y_scalars.append(float(y_val))
                         except (TypeError, ValueError):
                             ok = False
                             break
-                    y_lists.append(ys)
-                if not ok:
-                    continue
-                st.x_vals = xs
-                # Resize y_series container if needed
-                if len(st.y_series) != len(y_lists):
-                    st.y_series = [[] for _ in range(len(y_lists))]
-                for i, ys in enumerate(y_lists):
-                    st.y_series[i] = ys
-            else:
-                # Append scalar point
-                # print(breakhere)
-                try:
-                    x_scalar = float(x_val)
-                except (TypeError, ValueError):
-                    continue
-                st.x_vals.append(x_scalar)
+                    if not ok:
+                        continue
 
-                y_scalars: List[float] = []
-                ok = True
-                # print(breakhere)
-                for y_key in st.y_keys:
-                    y_val = _get(rec, y_key)
-                    try:
-                        y_scalars.append(float(y_val))
-                    except (TypeError, ValueError):
-                        ok = False
-                        # print(breakhere)
-                        break
-                if not ok:
-                    continue
-
-                # Ensure container size
-                if len(st.y_series) != len(st.y_keys):
-                    st.y_series = [[] for _ in st.y_keys]
-                for i, yv in enumerate(y_scalars):
-                    st.y_series[i].append(yv)
+                    # Ensure container size
+                    if len(st.y_series) != len(st.y_keys):
+                        st.y_series = [[] for _ in st.y_keys]
+                    for i, yv in enumerate(y_scalars):
+                        st.y_series[i].append(yv)
 
             # Draw or update lines
-            # print(st.x_vals)
-            # print(ys)
             if not st.lines:
-                labels = [yk for yk in st.y_keys]
+                labels = st.mag_keys if (st.polar and st.mag_keys) else [yk for yk in st.y_keys]
                 st.lines = []
                 if st.polar:
-                    for ys, label in zip(st.y_series, labels):
-                        coll = st.ax.scatter(st.x_vals, ys, s=16, label=label)
+                    import numpy as _np
+                    data_pairs = zip(st.angles_series, st.y_series)
+                    for angs, mags, label in zip(st.angles_series, st.y_series, labels):
+                        offs = _np.c_[angs, mags]
+                        coll = st.ax.scatter(offs[:, 0], offs[:, 1], s=16, label=label)
                         st.lines.append(coll)
                 else:
                     for ys, label in zip(st.y_series, labels):
-                        # print(ys)
                         (line,) = st.ax.plot(st.x_vals, ys, marker='o', linewidth=1, label=label)
                         st.lines.append(line)
                 if not st.polar:
@@ -195,8 +264,8 @@ class LivePlotWriter(JsonlWriter):
             else:
                 if st.polar:
                     import numpy as _np
-                    for coll, ys in zip(st.lines, st.y_series):
-                        offs = _np.c_[st.x_vals, ys]
+                    for coll, angs, mags in zip(st.lines, st.angles_series, st.y_series):
+                        offs = _np.c_[angs, mags]
                         coll.set_offsets(offs)
                 else:
                     for line, ys in zip(st.lines, st.y_series):

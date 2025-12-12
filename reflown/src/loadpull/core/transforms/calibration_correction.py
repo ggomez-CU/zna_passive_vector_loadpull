@@ -25,7 +25,7 @@ def register_calibration_corrections_transforms(registry: TransformRegistry) -> 
         a2 = np.asarray(a2_arr, dtype=complex).ravel()
 
         with np.errstate(divide="ignore", invalid="ignore"):
-            gamma_source = b1 / a1
+            gamma_source = a1 / b1
 
         with np.errstate(divide="ignore", invalid="ignore"):
             gamma_load = a2 / b2

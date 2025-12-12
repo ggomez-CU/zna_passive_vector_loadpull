@@ -1,0 +1,1 @@
+{"schema": "1.0.0", "ts": "2025-12-11T19:29:01Z", "test": "test_VNA_atten", "step": "results:update", "2port_cal_filename": "20251209_outputtunertest.cal", "1port_cal_filename": "20251211_oneporttunertest.cal", "setup_filename": "PassiveLoadpullCalState.zvx", "test_frequency": 3, "sweep_file": "loadsweeps/load_sweep_attenvalidation.csv", "sweep_info.count": 27}

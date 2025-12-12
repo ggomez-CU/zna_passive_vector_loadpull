@@ -11,7 +11,7 @@ class AppToolBar(QtWidgets.QToolBar):
     sig_export = QtCore.Signal(str)
 
     def __init__(self, parent=None) -> None:
-        # print("init: AppToolBar.__init__", flush=True)
+        print("init: AppToolBar.__init__", flush=True)
         super().__init__("Toolbar", parent)
         self.setMovable(False)
         self.setIconSize(QtCore.QSize(18, 18))

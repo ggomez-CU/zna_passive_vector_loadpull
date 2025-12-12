@@ -7,7 +7,7 @@ Modular, read‑only GUI for browsing and plotting measurement runs.
 
 import sys
 from pathlib import Path
-from typing import Optional, Iterable
+from typing import Optional
 
 from PySide6 import QtCore, QtWidgets, QtGui
 
@@ -21,7 +21,6 @@ from .ui.metadata_panel import MetadataPanel
 from .ui.issues_panel import IssuesPanel
 from .ui.data_table_panel import DataTablePanel
 from .plots.deck import PlotDeck
-from .ui_form import Ui_MainWindow
 
 
 class MainWindow(QtWidgets.QMainWindow):
@@ -30,10 +29,8 @@ class MainWindow(QtWidgets.QMainWindow):
     POLL_MS = 3000
 
     def __init__(self, root: Optional[str] = None) -> None:
-        # print("init: MainWindow.__init__", flush=True)
+        print("init: MainWindow.__init__", flush=True)
         super().__init__()
-        self.ui = Ui_MainWindow()
-        self.ui.setupUi(self)
         self.setWindowTitle("Loadpull Plotter")
         self.resize(1300, 850)
 
@@ -99,7 +96,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self._update_title()
 
     def _wire_signals(self) -> None:
-        # print("init: MainWindow._wire_signals", flush=True)
+        print("init: MainWindow._wire_signals", flush=True)
         self.toolbar.sig_select_root.connect(self._choose_root)
         self.toolbar.sig_toggle_log.connect(self.deck.set_log_mode)
         self.toolbar.sig_export.connect(self.deck.export_current)
@@ -109,13 +106,13 @@ class MainWindow(QtWidgets.QMainWindow):
         self.metadata.sig_options_changed.connect(self._on_options)
 
     def _update_title(self) -> None:
-        # print("init: MainWindow._update_title", flush=True)
+        print("init: MainWindow._update_title", flush=True)
         self.setWindowTitle(f"Loadpull Plotter - {self.root_dir}")
 
     # No conflict handling needed; database is read-only for the app
 
     def _choose_root(self) -> None:
-        # print("init: MainWindow._choose_root", flush=True)
+        print("init: MainWindow._choose_root", flush=True)
         dlg = QtWidgets.QFileDialog(self, "Select runs root", str(self.root_dir))
         dlg.setFileMode(QtWidgets.QFileDialog.Directory)
         dlg.setOption(QtWidgets.QFileDialog.ShowDirsOnly, True)
@@ -128,19 +125,19 @@ class MainWindow(QtWidgets.QMainWindow):
                 self._reload_runs()
 
     def _reload_runs(self) -> None:
-        # print("init: MainWindow._reload_runs", flush=True)
+        print("init: MainWindow._reload_runs", flush=True)
         grouped = discover_runs_grouped(self.root_dir)
         self.runs.load_groups(grouped)
         self.status.showMessage(f"Discovered {sum(len(v) for v in grouped.values())} runs")
 
     def _maybe_refresh(self) -> None:
-        # print("init: MainWindow._maybe_refresh", flush=True)
+        print("init: MainWindow._maybe_refresh", flush=True)
         grouped = discover_runs_grouped(self.root_dir)
         if self.runs.refresh_if_changed(grouped):
             self.status.showMessage("Runs updated")
 
     def _load_runs(self, runs: list) -> None:
-        # print("init: MainWindow._load_runs", flush=True)
+        print("init: MainWindow._load_runs", flush=True)
         if not runs:
             return
         ttype = runs[0].test_type
@@ -149,15 +146,6 @@ class MainWindow(QtWidgets.QMainWindow):
         self.deck.load_runs(runs)
         # Build metadata options from registry specs
         cols: list[str] = []
-        def _append_cols(value: Optional[Iterable[str] | str]) -> None:
-            if not value:
-                return
-            if isinstance(value, str):
-                cols.append(value)
-                return
-            for entry in value:
-                if entry:
-                    cols.append(entry)
         for specs in self.registry.tabs_for(ttype).values():
             for spec in specs:
                 cols.extend(PlotDeck.needed_columns_for_spec(spec))
@@ -167,13 +155,13 @@ class MainWindow(QtWidgets.QMainWindow):
         self._update_data_table()
 
     def _on_filters(self, ranges: dict) -> None:
-        # print("init: MainWindow._on_filters", flush=True)
+        print("init: MainWindow._on_filters", flush=True)
         self._filters_state = dict(ranges)
         self.deck.apply_filters(self._filters_state)
         self._update_data_table()
 
     def _on_options(self, opts: dict) -> None:
-        # print("init: MainWindow._on_options", flush=True)
+        print("init: MainWindow._on_options", flush=True)
         self._options_state = dict(opts)
         self.deck.set_options(self._options_state)
         self._update_data_table()
@@ -188,7 +176,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
 
 def main() -> None:
-    # print("init: main", flush=True)
+    print("init: main", flush=True)
     app = QtWidgets.QApplication(sys.argv)
     mw = MainWindow()
     mw.show()

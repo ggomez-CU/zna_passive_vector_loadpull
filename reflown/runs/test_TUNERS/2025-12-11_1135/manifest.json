@@ -1,0 +1,8 @@
+{
+  "schema": "1.0.0",
+  "bench": "bench_loadtuner",
+  "ts": "2025-12-11T18:35:27Z",
+  "test": "test_TUNERS",
+  "out": "runs\\test_TUNERS\\2025-12-11_1135",
+  "hash": "2d2bf3d80e85"
+}

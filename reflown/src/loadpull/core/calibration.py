@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any, Dict, Iterator, List, Optional
 
 _HISTORY_KEY = "__history__"
+_MAX_CAL_FILE_BYTES = 5 * 1024 * 1024  # 5 MB cap for calibration store
 
 
 @dataclass
@@ -82,8 +83,51 @@ class CalibrationStore:
         }
         history_list.append(entry)
 
+    def _trim_history_to_size(self, max_bytes: int) -> None:
+        """Drop oldest history entries until serialized size fits under max_bytes."""
+        def serialized_size() -> int:
+            payload = json.dumps(self._data, indent=2, sort_keys=True)
+            return len(payload.encode("utf-8"))
+
+        # If no history bucket exists, nothing to trim.
+        history_bucket = self._history_root()
+        if not history_bucket:
+            return
+
+        # Remove the oldest entries across all history lists until size fits or history is empty.
+        while serialized_size() > max_bytes:
+            oldest_key = None
+            oldest_ts = None
+
+            for key, entries in history_bucket.items():
+                if not isinstance(entries, list) or not entries:
+                    continue
+                ts = entries[0].get("ts")
+                # Compare ISO timestamps lexicographically; fallback to the first available.
+                if oldest_ts is None or (isinstance(ts, str) and ts < oldest_ts):
+                    oldest_ts = ts if isinstance(ts, str) else ""
+                    oldest_key = key
+
+            if oldest_key is None:
+                # Nothing left we can trim.
+                break
+
+            entries = history_bucket.get(oldest_key)
+            if isinstance(entries, list) and entries:
+                entries.pop(0)
+                # Clean up empty history lists to keep the file compact.
+                if not entries:
+                    history_bucket.pop(oldest_key, None)
+            else:
+                break
+
+            # If history is completely gone but still too large, nothing else to trim.
+            if not history_bucket:
+                break
+
     def save(self) -> None:
         """Persist the current calibration map to disk."""
+        self._trim_history_to_size(_MAX_CAL_FILE_BYTES)
         payload = json.dumps(self._data, indent=2, sort_keys=True)
         tmp_path = self.path.with_suffix(self.path.suffix + ".tmp")
         tmp_path.write_text(payload + "\n", encoding="utf-8")
