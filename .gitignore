@@ -2,3 +2,6 @@ reflown/.venv/
 /reflown/.venv
 /reflown/runs/plotter_database.sqlite
 **/*.pyc
+reflown/plotter/runs/plotter_database.sqlite
+reflown/runs/plotter_database.sqlite
+reflown/runs/plotter_database.sqlite
