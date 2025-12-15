@@ -1,10 +1,11 @@
 name: test_VNA_atten
 requires: [VNA, LOADTUNER]
 
-parameters: {2port_cal_filename: {default: "20251210_outputtunertest.cal"},
-  1port_cal_filename: {default: "20251211_oneporttunertest.cal"}, 
+parameters: {2port_cal_filename: {default: "20251215_outputtunertest.cal"},
+  1port_cal_filename: {default: "20251215_oneporttunertest.cal"}, 
   setup_filename: {default: "PassiveLoadpullCalState.zvx"},
-  test_frequency: {default: 12},
+  test_frequency: {default: 8},
+
   sweep_file: {default: "loadsweeps/load_sweep_attenvalidation.csv"}}
 
 plot:

@@ -5,3 +5,6 @@ reflown/.venv/
 reflown/plotter/runs/plotter_database.sqlite
 reflown/runs/plotter_database.sqlite
 reflown/runs/plotter_database.sqlite
+*.sqlite
+*.sqlite
+reflown/runs/plotter_database.sqlite
